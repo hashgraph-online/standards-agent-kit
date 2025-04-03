@@ -5,14 +5,13 @@ import { z } from 'zod';
 // import { FeeConfigBuilder } from '@hashgraphonline/standards-sdk';
 import { Logger } from '@hashgraphonline/standards-sdk';
 import {
-  OpenConvaiState as StateManagerInterface,
+  IStateManager,
   ActiveConnection,
-} from '../open-convai-state'; // Corrected import path/name
+} from '../state/open-convai-state'; // Corrected import path/name
 
-// Add demoState to params
 export interface ConnectionToolParams extends ToolParams {
   client: HCS10Client;
-  stateManager: StateManagerInterface; // Renamed parameter
+  stateManager: IStateManager;
 }
 
 /**
@@ -27,7 +26,7 @@ export class ConnectionTool extends StructuredTool {
     "Starts passively LISTENING on the current agent's own inbound topic for INCOMING HCS-10 connection requests. Handles received requests automatically. Takes NO arguments. DO NOT use this to start a new connection TO someone else.";
   public client: HCS10Client;
   public logger: Logger;
-  private stateManager: StateManagerInterface; // Renamed property
+  private stateManager: IStateManager; // Renamed property
   private isMonitoring: boolean = false; // Flag to prevent multiple monitors
   private monitoringTopic: string | null = null;
 

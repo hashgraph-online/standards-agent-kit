@@ -1,12 +1,12 @@
 import { StructuredTool, ToolParams } from '@langchain/core/tools';
 import { z } from 'zod';
 import {
-  OpenConvaiState as StateManagerInterface,
+  IStateManager,
   ActiveConnection,
-} from '../open-convai-state';
+} from '../state/open-convai-state';
 
 export interface ListConnectionsToolParams extends ToolParams {
-  stateManager: StateManagerInterface;
+  stateManager: IStateManager;
 }
 
 /**
@@ -18,7 +18,7 @@ export class ListConnectionsTool extends StructuredTool {
     'Lists the currently active HCS-10 connections. Provides details like connection number, target agent name, target account ID, status, and the connection topic ID for each connection.';
   schema = z.object({});
 
-  private stateManager: StateManagerInterface;
+  private stateManager: IStateManager;
 
   constructor({ stateManager, ...rest }: ListConnectionsToolParams) {
     super(rest);

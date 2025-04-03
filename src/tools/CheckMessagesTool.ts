@@ -1,12 +1,12 @@
 import { StructuredTool, ToolParams } from '@langchain/core/tools';
 import { z } from 'zod';
 import { HCS10Client } from '../hcs10/HCS10Client';
-import { OpenConvaiState as StateManagerInterface } from '../open-convai-state';
+import { IStateManager } from '../state/open-convai-state';
 import { Logger } from '@hashgraphonline/standards-sdk'; // Assuming logger utility
 
 export interface CheckMessagesToolParams extends ToolParams {
   hcsClient: HCS10Client;
-  stateManager: StateManagerInterface;
+  stateManager: IStateManager;
 }
 
 /**
@@ -25,7 +25,7 @@ export class CheckMessagesTool extends StructuredTool {
   });
 
   public hcsClient: HCS10Client;
-  private stateManager: StateManagerInterface;
+  private stateManager: IStateManager;
   private logger: Logger;
 
   constructor({ hcsClient, stateManager, ...rest }: CheckMessagesToolParams) {

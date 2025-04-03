@@ -1,17 +1,20 @@
 import * as dotenv from 'dotenv';
 import readline from 'readline';
 
-// --- HCS-10 Imports ---
-import { HCS10Client, StandardNetworkType } from '../src/hcs10/HCS10Client';
-// Use the renamed state class
-import { OpenConvaiState } from '../src/open-convai-state';
-import { CheckMessagesTool } from '../src/tools/CheckMessagesTool';
-import { ConnectionTool } from '../src/tools/ConnectionTool';
-import { InitiateConnectionTool } from '../src/tools/InitiateConnectionTool';
-import { ListConnectionsTool } from '../src/tools/ListConnectionsTool';
-import { RegisterAgentTool } from '../src/tools/RegisterAgentTool';
-import { SendMessageToConnectionTool } from '../src/tools/SendMessageToConnectionTool';
-import { SendMessageTool } from '../src/tools/SendMessageTool';
+import {
+  HCS10Client,
+  StandardNetworkType,
+  IStateManager,
+  OpenConvaiState,
+  CheckMessagesTool,
+  ConnectionTool,
+  RegisterAgentTool,
+  FindRegistrationsTool,
+  InitiateConnectionTool,
+  ListConnectionsTool,
+  SendMessageToConnectionTool,
+  SendMessageTool,
+} from '@hashgraphonline/standards-agent-kit';
 
 // --- LangChain Imports ---
 import { ChatOpenAI } from '@langchain/openai';
@@ -28,21 +31,23 @@ dotenv.config();
 
 // --- Configuration ---
 const AGENT_PERSONALITY = `You are a helpful assistant managing Hedera HCS-10 connections and messages.
-You have access to tools for registering agents, initiating connections, listing active connections, sending messages over connections, and checking for new messages.
+You have access to tools for registering agents, finding registered agents, initiating connections, listing active connections, sending messages over connections, and checking for new messages.
 The current agent you are operating as is configured via environment variables (OPERATOR_ID), but can switch if a new agent is registered.
 When asked to perform an action, use the available tools. Ask for clarification if needed.
 Be concise and informative in your responses.
 
 *** IMPORTANT TOOL SELECTION RULES ***
+- To REGISTER a new agent, use 'register_agent'.
+- To FIND existing registered agents in the registry, use 'find_registrations'. You can filter by accountId or tags.
 - To START a NEW connection TO a specific target agent (using their account ID), ALWAYS use the 'initiate_connection' tool.
 - To LISTEN for INCOMING connection requests FROM other agents, use the 'monitor_connections' tool (it takes NO arguments).
-- Do NOT confuse these two tools.
+- Do NOT confuse these tools.
 
 Remember the connection numbers when listing connections, as users might refer to them.`;
 
 // --- Global Variables ---
 let hcsClient: HCS10Client;
-let stateManager: OpenConvaiState; // Use renamed class and variable name
+let stateManager: IStateManager; // Use renamed class and variable name
 let agentExecutor: AgentExecutor;
 let memory: ConversationTokenBufferMemory;
 let connectionMonitor: ConnectionTool | null = null;
@@ -133,9 +138,10 @@ async function initialize() {
       `HCS client configured for operator ${hcsClient.getOperatorId()} on ${standardNetwork}.`
     );
 
-    // --- Instantiate Tools as an Array, passing stateManager via demoState ---
+    // --- Instantiate Tools as an Array, passing stateManager via stateManager ---
     const tools: StructuredToolInterface[] = [
       new RegisterAgentTool(hcsClient),
+      new FindRegistrationsTool({ hcsClient }),
       new InitiateConnectionTool({ hcsClient, stateManager: stateManager }),
       new ListConnectionsTool({ stateManager: stateManager }),
       new SendMessageToConnectionTool({
@@ -266,15 +272,3 @@ main().catch((err) => {
   console.error('Unhandled error in main loop:', err);
   process.exit(1);
 });
-
-// --- HCS10Client Modification Reminder ---
-/*
-!!! IMPORTANT REMINDER !!!
-
-In `src/hcs10/HCS10Client.ts`, you MUST add methods like:
-
-public async getInboundTopicId(): Promise<string> { ... see previous message ... }
-public getOperatorId(): string { ... see previous message ... }
-
-(Implement these correctly in HCS10Client.ts before enabling connection monitoring)
-*/
