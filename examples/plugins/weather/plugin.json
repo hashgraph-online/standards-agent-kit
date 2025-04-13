@@ -1,0 +1,8 @@
+{
+  "id": "weather-api",
+  "name": "Weather API Plugin",
+  "description": "Provides tools to access weather data",
+  "version": "1.0.0",
+  "author": "Hashgraph Online",
+  "main": "index.js"
+}
