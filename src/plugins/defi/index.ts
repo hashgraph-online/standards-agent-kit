@@ -1,7 +1,8 @@
-import { BasePlugin, PluginContext } from '../../../src/plugins';
+import { HCS10Plugin } from '../../../src/plugins/HCS10Plugin';
 import { StructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import axios from 'axios';
+import { HCS10Client } from '../../../src/hcs10/HCS10Client';
 
 /**
  * Tool for getting token price information using CoinGecko
@@ -14,7 +15,7 @@ class GetTokenPriceTool extends StructuredTool {
     tokenId: z.string().describe('The Hedera token ID (e.g., 0.0.12345)'),
   });
   
-  constructor(private client: any) {
+  constructor(private client: HCS10Client) {
     super();
   }
   
@@ -55,7 +56,7 @@ class SwapTokensTool extends StructuredTool {
     amount: z.number().positive().describe('The amount of the source token to swap'),
   });
   
-  constructor(private client: any) {
+  constructor(private client: HCS10Client) {
     super();
   }
   
@@ -88,7 +89,7 @@ class CheckTokenBalanceTool extends StructuredTool {
     accountId: z.string().optional().describe('The account ID to check (defaults to the operator account)'),
   });
   
-  constructor(private client: any) {
+  constructor(private client: HCS10Client) {
     super();
   }
   
@@ -111,7 +112,7 @@ class CheckTokenBalanceTool extends StructuredTool {
 /**
  * DeFi Integration Plugin for the Standards Agent Kit
  */
-export default class DeFiPlugin extends BasePlugin {
+export default class DeFiPlugin extends HCS10Plugin {
   id = 'defi-integration';
   name = 'DeFi Integration Plugin';
   description = 'Provides tools to interact with DeFi protocols on Hedera';

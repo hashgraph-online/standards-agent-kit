@@ -1,23 +1,23 @@
-import { IPlugin, PluginContext } from './PluginInterface';
+import { IPlugin, BasePluginContext } from './PluginInterface';
 import { StructuredTool } from '@langchain/core/tools';
 
 /**
  * Base class for plugins to simplify implementation
  */
-export abstract class BasePlugin implements IPlugin {
+export abstract class BasePlugin<T extends BasePluginContext = BasePluginContext> implements IPlugin<T> {
   abstract id: string;
   abstract name: string;
   abstract description: string;
   abstract version: string;
   abstract author: string;
 
-  protected context!: PluginContext;
+  protected context!: T;
 
   /**
    * Initialize the plugin with the provided context
    * @param context The context containing shared resources
    */
-  async initialize(context: PluginContext): Promise<void> {
+  async initialize(context: T): Promise<void> {
     this.context = context;
   }
 

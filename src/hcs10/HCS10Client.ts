@@ -35,7 +35,7 @@ export interface ClientValidationOptions {
 
 export interface HCSMessageWithTimestamp extends HCSMessage {
   timestamp: number;
-  data: string;
+  data?: string;
   sequence_number: number;
 }
 
@@ -334,7 +334,7 @@ export class HCS10Client {
       const content = await this.standardClient.getMessageContent(
         inscriptionIdOrData
       );
-      return content;
+      return content as string;
     } catch (error) {
       this.logger.error(
         `Error retrieving message content for: ${inscriptionIdOrData}`,

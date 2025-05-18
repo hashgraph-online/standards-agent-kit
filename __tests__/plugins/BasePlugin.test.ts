@@ -1,7 +1,7 @@
 import { describe, expect, test, jest, beforeEach } from '@jest/globals';
-import { BasePlugin, PluginContext } from '../../../src/plugins/BasePlugin';
+import { BasePlugin, PluginContext } from '../../src/plugins/BasePlugin';
 import { StructuredTool } from '@langchain/core/tools';
-import { HCS10Client } from '../../../src/hcs10/HCS10Client';
+import { HCS10Client } from '../../src/hcs10/HCS10Client';
 import { Logger } from '@hashgraphonline/standards-sdk';
 import { z } from 'zod';
 

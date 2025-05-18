@@ -3,7 +3,7 @@ import {
   Logger,
   FeeConfigBuilder,
 } from '@hashgraphonline/standards-sdk';
-import { ensureAgentHasEnoughHbar } from '../utils/state-tools';
+import { ensureAgentHasEnoughHbar } from '../utils/ensure-agent-has-hbar';
 import { HCS10Client, ExtendedAgentMetadata } from '../hcs10/HCS10Client';
 import { StructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';

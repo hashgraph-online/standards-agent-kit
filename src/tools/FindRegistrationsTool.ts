@@ -2,6 +2,7 @@ import { StructuredTool, ToolParams } from '@langchain/core/tools';
 import { z } from 'zod';
 import { HCS10Client } from '../hcs10/HCS10Client';
 import {
+  AIAgentCapability,
   Logger,
   RegistrationSearchOptions,
 } from '@hashgraphonline/standards-sdk';
@@ -25,7 +26,7 @@ export class FindRegistrationsTool extends StructuredTool {
         'Optional: Filter registrations by a specific Hedera account ID (e.g., 0.0.12345).'
       ),
     tags: z
-      .array(z.string())
+      .array(z.nativeEnum(AIAgentCapability))
       .optional()
       .describe(
         'Optional: Filter registrations by a list of tags (API filter only).'
@@ -85,21 +86,21 @@ export class FindRegistrationsTool extends StructuredTool {
       // Format the results based on available data from RegistrationSearchResult
       let output = `Found ${result.registrations.length} registration(s):\n`;
       result.registrations.forEach((reg, index: number) => {
-        const metadata: any = reg.metadata;
-        output += `${index + 1}. Name: ${metadata.name || 'N/A'}\n`;
-        output += `Description: ${metadata.description || 'N/A'}\n`;
-        output += `   Account ID: ${reg.account_id}\n`;
+        const metadata = reg.metadata;
+        output += `${index + 1}. Name: ${metadata.alias || 'N/A'}\n`;
+        output += `Description: ${metadata.bio || 'N/A'}\n`;
+        output += `   Account ID: ${reg.accountId}\n`;
         output += `   Status: ${reg.status}\n`;
-        output += `   Model: ${metadata.model || 'N/A'}\n`;
-        if (metadata.tags && metadata.tags.length > 0) {
-          output += `   Tags: ${metadata.tags.join(', ')}\n`;
+        output += `   Model: ${metadata.properties?.model || 'N/A'}\n`;
+        if (metadata.properties?.capabilities && metadata.properties.capabilities.length > 0) {
+          output += `   Capabilities: ${metadata.properties.capabilities.join(', ')}\n`;
         }
         if (metadata.properties) {
           output += `   Properties: ${JSON.stringify(metadata.properties)}\n`;
         }
-        output += `   Inbound Topic: ${reg.inbound_topic_id}\n`;
-        output += `   Outbound Topic: ${reg.outbound_topic_id}\n`;
-        output += `   Created At: ${reg.created_at}\n`;
+        output += `   Inbound Topic: ${reg.inboundTopicId}\n`;
+        output += `   Outbound Topic: ${reg.outboundTopicId}\n`;
+        output += `   Created At: ${reg.createdAt}\n`;
       });
 
       return output.trim();

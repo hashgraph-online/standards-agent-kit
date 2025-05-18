@@ -85,7 +85,7 @@ export class SendMessageTool extends StructuredTool {
           ) {
             this.lastProcessedTimestamp = message.created.getTime();
 
-            const content = await this.client.getMessageContent(message.data);
+            const content = await this.client.getMessageContent(message.data || '');
 
             let parsedContent;
             try {

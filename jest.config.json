@@ -1,14 +1,13 @@
 {
+  "rootDir": ".",
+  "testMatch": [
+    "**/__tests__/**/*.test.ts",
+    "**/tests/plugins/__tests__/**/*.test.ts",
+    "**/src/**/__tests__/**/*.test.ts"
+  ],
   "transform": {
-    "^.+\\.(t|j)sx?$": ["@swc/jest"]
+    "^.+\\.(t|j)sx?$": "@swc/jest"
   },
-  "testEnvironment": "node",
-  "testRegex": "(/tests/plugins/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
-  "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
-  "setupFilesAfterEnv": ["./jest.setup.js"],
-  "testPathIgnorePatterns": [
-    "/node_modules/",
-    "/tests/hcs10/",
-    "/tests/tools/"
-  ]
+  "testEnvironment": "jsdom",
+  "setupFilesAfterEnv": ["./jest.setup.js"]
 }

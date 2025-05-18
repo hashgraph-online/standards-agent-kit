@@ -128,7 +128,7 @@ export class SendMessageToConnectionTool extends StructuredTool {
           ) {
             continue;
           }
-          const content = await this.hcsClient.getMessageContent(message.data);
+          const content = await this.hcsClient.getMessageContent(message.data || '');
 
           return content;
         }

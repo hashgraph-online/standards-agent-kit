@@ -137,7 +137,7 @@ Use 'lastMessagesCount' to specify how many latest messages to retrieve (default
           // Attempt to parse the content as the HCS-10 structure
           let displayContent = content; // Default to raw content
           try {
-            const parsed = JSON.parse(content);
+            const parsed = JSON.parse(content || '{}');
             if (
               parsed.p === 'hcs-10' &&
               parsed.op === 'message' &&
