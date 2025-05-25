@@ -64,18 +64,14 @@ export function initializeHCS10Client(options?: HCS10InitializationOptions): {
   tools: Partial<HCS10Tools>;
   stateManager: IStateManager;
 } {
-  // Set up the configuration
   const config = options?.clientConfig || {};
 
-  // Use environment variables as fallbacks if not explicitly provided
   const operatorId = config.operatorId || process.env.HEDERA_OPERATOR_ID;
   const operatorPrivateKey =
     config.operatorKey || process.env.HEDERA_OPERATOR_KEY;
 
-  // Get network from config or env, default to testnet
   const networkEnv = config.network || process.env.HEDERA_NETWORK || 'testnet';
 
-  // Validate and cast network type
   let network: StandardNetworkType;
   if (networkEnv === 'mainnet') {
     network = 'mainnet';
@@ -85,7 +81,7 @@ export function initializeHCS10Client(options?: HCS10InitializationOptions): {
     console.warn(
       `Unsupported network specified: '${networkEnv}'. Defaulting to 'testnet'.`
     );
-    network = 'testnet'; // Default to testnet if invalid/unsupported
+    network = 'testnet';
   }
 
   if (!operatorId || !operatorPrivateKey) {
@@ -94,28 +90,24 @@ export function initializeHCS10Client(options?: HCS10InitializationOptions): {
     );
   }
 
-  // Set up logging
   const logger = Logger.getInstance({
     level: config.logLevel || 'info',
   });
 
-  // Create or use provided state manager
   const stateManager =
     options?.stateManager ||
     new OpenConvaiState({
       defaultEnvFilePath: ENV_FILE_PATH,
-      defaultPrefix: 'TODD', // Keep backward compatibility with existing demos
+      defaultPrefix: 'TODD',
     });
   logger.info('State manager initialized');
 
-  // Instantiate primary HCS10Client
   const hcs10Client = new HCS10Client(operatorId, operatorPrivateKey, network, {
     useEncryption: config.useEncryption,
     registryUrl: config.registryUrl,
   });
   logger.info(`HCS10Client initialized for ${operatorId} on ${network}`);
 
-  // Create monitoring client if requested
   let monitoringClient: HCS10Client | undefined;
   if (options?.monitoringClient) {
     monitoringClient = new HCS10Client(
@@ -125,16 +117,14 @@ export function initializeHCS10Client(options?: HCS10InitializationOptions): {
       {
         useEncryption: config.useEncryption,
         registryUrl: config.registryUrl,
-        logLevel: 'error', // Reduce logging noise for monitoring client
+        logLevel: 'error',
       }
     );
     logger.info('Monitoring client initialized');
   }
 
-  // Initialize the tools object
   const tools: Partial<HCS10Tools> = {};
 
-  // Always create these core tools
   tools.registerAgentTool = new RegisterAgentTool(hcs10Client, stateManager);
   tools.sendMessageTool = new SendMessageTool(hcs10Client);
   tools.connectionTool = new ConnectionTool({
@@ -142,7 +132,6 @@ export function initializeHCS10Client(options?: HCS10InitializationOptions): {
     stateManager,
   });
 
-  // Create all tools if requested
   if (options?.createAllTools) {
     tools.findRegistrationsTool = new FindRegistrationsTool({
       hcsClient: hcs10Client,

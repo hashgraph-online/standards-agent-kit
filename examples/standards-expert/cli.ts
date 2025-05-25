@@ -6,12 +6,11 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { Command } from 'commander';
 import { initializeHCS10Client, HCS10Client } from '../../src';
-import { AIAgentCapability } from '@hashgraphonline/standards-sdk';
+import { AIAgentCapability, Logger } from '@hashgraphonline/standards-sdk';
 import { StandardsExpertAgent } from './standards-expert-agent';
 import { VectorStore } from './vector-store';
 import { DocumentProcessor } from './document-processor';
 import { OpenConvaiState } from '../../src/state/open-convai-state';
-import { Logger } from '@hashgraphonline/standards-sdk';
 
 dotenv.config();
 

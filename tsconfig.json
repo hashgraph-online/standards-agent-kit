@@ -22,8 +22,9 @@
   },
   "include": [
     "src/**/*",
-    "examples/**/*"
-  ],
+    "examples/**/*",
+    "vite.config.ts"
+, "__tests__/plugins/HbarPricePlugin.test.ts"  ],
   "exclude": [
     "node_modules",
     "dist"

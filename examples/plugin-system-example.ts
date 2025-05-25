@@ -1,6 +1,12 @@
-import { HCS10Client, PluginRegistry, PluginContext, Logger, StandardNetworkType } from '../src';
+import {
+  HCS10Client,
+  PluginRegistry,
+  PluginContext,
+  StandardNetworkType,
+} from '../src';
 import WeatherPlugin from './plugins/weather';
 import DeFiPlugin from './plugins/defi';
+import { Logger } from '@hashgraphonline/standards-sdk';
 
 /**
  * Example demonstrating how to use the plugin system
@@ -17,7 +23,7 @@ async function pluginSystemExample(): Promise<void> {
 
     // Create logger
     const logger = Logger.getInstance({
-      level: 'debug'
+      level: 'debug',
     });
 
     // Create plugin context
@@ -28,7 +34,7 @@ async function pluginSystemExample(): Promise<void> {
         // Add your WeatherAPI key here if you want to test the weather plugin
         // You can get a free API key from https://www.weatherapi.com/
         weatherApiKey: process.env.WEATHER_API_KEY,
-      }
+      },
     };
 
     // Initialize plugin registry
@@ -42,25 +48,29 @@ async function pluginSystemExample(): Promise<void> {
     // Get all registered plugins
     const plugins = pluginRegistry.getAllPlugins();
     console.log(`Registered plugins (${plugins.length}):`);
-    plugins.forEach(plugin => {
-      console.log(`- ${plugin.name} (${plugin.id}) v${plugin.version} by ${plugin.author}`);
+    plugins.forEach((plugin) => {
+      console.log(
+        `- ${plugin.name} (${plugin.id}) v${plugin.version} by ${plugin.author}`
+      );
     });
 
     // Get all tools from all plugins
     const tools = pluginRegistry.getAllTools();
     console.log(`\nAvailable tools (${tools.length}):`);
-    tools.forEach(tool => {
+    tools.forEach((tool) => {
       console.log(`- ${tool.name}: ${tool.description}`);
     });
 
     // Example of using a tool from the weather plugin
     console.log('\nExample: Using the get_current_weather tool');
-    const weatherTool = tools.find(tool => tool.name === 'get_current_weather');
+    const weatherTool = tools.find(
+      (tool) => tool.name === 'get_current_weather'
+    );
     if (weatherTool) {
       try {
         const result = await weatherTool.invoke({
           location: 'London, UK',
-          unit: 'celsius'
+          unit: 'celsius',
         });
         console.log('Result:', result);
       } catch (error) {
@@ -72,11 +82,11 @@ async function pluginSystemExample(): Promise<void> {
 
     // Example of using a tool from the DeFi plugin
     console.log('\nExample: Using the get_token_price tool');
-    const priceTool = tools.find(tool => tool.name === 'get_token_price');
+    const priceTool = tools.find((tool) => tool.name === 'get_token_price');
     if (priceTool) {
       try {
         const result = await priceTool.invoke({
-          tokenId: '0.0.1234'
+          tokenId: '0.0.1234',
         });
         console.log('Result:', result);
       } catch (error) {
@@ -90,7 +100,6 @@ async function pluginSystemExample(): Promise<void> {
     console.log('\nUnregistering plugins...');
     await pluginRegistry.unregisterAllPlugins();
     console.log('All plugins unregistered');
-
   } catch (error) {
     console.error('Error in plugin system example:', error);
   }

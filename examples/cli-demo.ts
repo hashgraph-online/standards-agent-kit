@@ -1,27 +1,31 @@
 import * as dotenv from 'dotenv';
-import { HCS10Tools, initializeHCS10Client, IStateManager } from '../src/index';
-import { HCS10Client } from '../src/hcs10/HCS10Client';
-import { ConnectionTool } from '../src/tools/ConnectionTool';
-import { ConnectionMonitorTool } from '../src/tools/ConnectionMonitorTool';
-import { ListConnectionsTool } from '../src/tools/ListConnectionsTool';
-import { InitiateConnectionTool } from '../src/tools/InitiateConnectionTool';
-import { SendMessageToConnectionTool } from '../src/tools/SendMessageToConnectionTool';
-import { CheckMessagesTool } from '../src/tools/CheckMessagesTool';
-import { ManageConnectionRequestsTool } from '../src/tools/ManageConnectionRequestsTool';
-import { AcceptConnectionRequestTool } from '../src/tools/AcceptConnectionRequestTool';
-import { ListUnapprovedConnectionRequestsTool } from '../src/tools/ListUnapprovedConnectionRequestsTool';
-import { OpenConvaiState } from '../src/state/open-convai-state';
+import {
+  HCS10Tools,
+  initializeHCS10Client,
+  IStateManager,
+  HCS10Client,
+  ConnectionTool,
+  ConnectionMonitorTool,
+  ListConnectionsTool,
+  InitiateConnectionTool,
+  SendMessageToConnectionTool,
+  CheckMessagesTool,
+  ManageConnectionRequestsTool,
+  AcceptConnectionRequestTool,
+  ListUnapprovedConnectionRequestsTool,
+  OpenConvaiState,
+  RegisterAgentTool,
+  PluginRegistry,
+  PluginContext,
+} from '@hashgraphonline/standards-agent-kit';
 import readline from 'readline';
-import { RegisterAgentTool } from '../src/tools/RegisterAgentTool';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { updateEnvFile } from '../src/utils/state-tools';
-// Import plugin system components
-import { PluginRegistry, PluginContext } from '../src/plugins';
 import WeatherPlugin from './plugins/weather';
 import DeFiPlugin from './plugins/defi';
 import { HbarPricePlugin } from '../src/plugins/hedera/HbarPricePlugin';
 import { Logger } from '@hashgraphonline/standards-sdk';
+import { updateEnvFile } from '../src/utils/state-tools';
 
 dotenv.config();
 
@@ -710,7 +714,6 @@ async function manageConnectionRequests() {
     case '2':
       viewRequestId = await question('Enter request ID to view: ');
       try {
-
         const result = await manageTool.invoke({
           action: 'view',
           requestKey: viewRequestId,
@@ -724,7 +727,6 @@ async function manageConnectionRequests() {
     case '3':
       acceptRequestId = await question('Enter request ID to accept: ');
       try {
-
         configureFees = await question(
           'Configure fees for this connection? (y/n): '
         );
@@ -1350,6 +1352,10 @@ async function main() {
 
     initResult = initializeHCS10Client({
       stateManager: stateManager,
+      clientConfig: {
+        operatorId: process.env.HEDERA_OPERATOR_ID,
+        operatorKey: process.env.HEDERA_OPERATOR_PRIVATE_KEY,
+      },
     });
 
     hcsClient = initResult.hcs10Client;
@@ -1471,7 +1477,9 @@ async function main() {
       await pluginRegistry.registerPlugin(hbarPricePlugin);
 
       console.log('Plugin system initialized successfully!');
-      console.log('Weather, DeFi, and HBAR Price plugins loaded automatically.');
+      console.log(
+        'Weather, DeFi, and HBAR Price plugins loaded automatically.'
+      );
 
       if (!weatherApiKey) {
         console.log(

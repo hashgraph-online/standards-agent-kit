@@ -7,8 +7,6 @@ import fs from 'fs';
 import path from 'path';
 import { ensureAgentHasEnoughHbar } from './ensure-agent-has-hbar';
 
-
-
 export const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 
 export interface AgentData {
@@ -27,8 +25,6 @@ export interface RegistrationProgressData {
   inboundTopicId?: string;
   outboundTopicId?: string;
 }
-
-
 
 export async function getAgentFromEnv(
   logger: Logger,

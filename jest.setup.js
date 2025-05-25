@@ -325,26 +325,108 @@ global.crypto = {
   },
 };
 
-// Mock dynamic import
+jest.mock('@hashgraph/sdk', () => ({
+  Client: {
+    forTestnet: jest.fn().mockReturnValue({
+      setOperator: jest.fn(),
+      close: jest.fn(),
+    }),
+    forMainnet: jest.fn().mockReturnValue({
+      setOperator: jest.fn(),
+      close: jest.fn(),
+    }),
+  },
+  PrivateKey: {
+    fromString: jest.fn().mockReturnValue({
+      publicKey: {
+        toString: jest.fn().mockReturnValue('mock-public-key'),
+      },
+      toString: jest.fn().mockReturnValue('mock-private-key'),
+    }),
+    generate: jest.fn().mockReturnValue({
+      publicKey: {
+        toString: jest.fn().mockReturnValue('mock-public-key'),
+      },
+      toString: jest.fn().mockReturnValue('mock-private-key'),
+    }),
+  },
+  AccountId: {
+    fromString: jest.fn().mockReturnValue({
+      toString: jest.fn().mockReturnValue('0.0.123'),
+    }),
+  },
+  TopicId: {
+    fromString: jest.fn().mockReturnValue({
+      toString: jest.fn().mockReturnValue('0.0.456'),
+    }),
+  },
+  TopicCreateTransaction: jest.fn(),
+  TopicMessageSubmitTransaction: jest.fn(),
+  TopicMessageQuery: jest.fn(),
+  AccountCreateTransaction: jest.fn(),
+  TransferTransaction: jest.fn(),
+  Hbar: {
+    fromTinybars: jest.fn(),
+    from: jest.fn(),
+  },
+}));
+
 jest.mock('@hashgraphonline/standards-sdk', () => {
+  const actual = jest.requireActual('@hashgraphonline/standards-sdk');
   return {
-    EncryptionManager: jest.fn().mockImplementation(() => {
-      return {
-        encryptMessage: jest
-          .fn()
-          .mockImplementation(() => Promise.resolve('encrypted')),
-        decryptMessage: jest
-          .fn()
-          .mockImplementation(() => Promise.resolve('decrypted')),
-      };
-    }),
-    Logger: jest.fn().mockImplementation(() => {
-      return {
-        info: jest.fn(),
-        debug: jest.fn(),
-        error: jest.fn(),
-        warn: jest.fn(),
-      };
-    }),
+    ...actual,
+    Logger: jest.fn().mockImplementation((options) => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+    })),
+    HCS10Client: jest.fn().mockImplementation(() => ({
+      initialize: jest.fn(),
+      register: jest.fn(),
+      sendMessage: jest.fn(),
+      getMessages: jest.fn(),
+    })),
   };
+});
+
+jest.mock('@grpc/grpc-js', () => ({
+  credentials: {
+    createSsl: jest.fn(),
+    createInsecure: jest.fn(),
+  },
+  loadPackageDefinition: jest.fn(),
+  makeGenericClientConstructor: jest.fn(),
+  status: {
+    OK: 0,
+    CANCELLED: 1,
+    UNKNOWN: 2,
+  },
+  Metadata: jest.fn(),
+  Client: jest.fn(),
+}));
+
+jest.mock('./src/utils/state-tools', () => ({
+  updateEnvFile: jest.fn().mockResolvedValue(undefined),
+  getAgentFromEnv: jest.fn(),
+  createAgent: jest.fn(),
+  ENV_FILE_PATH: '.env',
+}));
+
+// Mock pino and pino-pretty to avoid file system issues
+jest.mock('pino', () => {
+  return jest.fn().mockImplementation(() => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    trace: jest.fn(),
+    level: 'info',
+  }));
+});
+
+jest.mock('pino-pretty', () => {
+  return jest.fn().mockImplementation(() => ({
+    write: jest.fn(),
+  }));
 });

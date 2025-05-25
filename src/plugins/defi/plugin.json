@@ -1,8 +1,0 @@
-{
-  "id": "defi-integration",
-  "name": "DeFi Integration Plugin",
-  "description": "Provides tools to interact with DeFi protocols on Hedera",
-  "version": "1.0.0",
-  "author": "Hashgraph Online",
-  "main": "index.js"
-}

@@ -1,13 +1,27 @@
 {
   "rootDir": ".",
-  "testMatch": [
-    "**/__tests__/**/*.test.ts",
-    "**/tests/plugins/__tests__/**/*.test.ts",
-    "**/src/**/__tests__/**/*.test.ts"
-  ],
+  "testMatch": ["**/__tests__/**/*.test.ts", "**/tests/**/*.test.ts"],
   "transform": {
     "^.+\\.(t|j)sx?$": "@swc/jest"
   },
-  "testEnvironment": "jsdom",
-  "setupFilesAfterEnv": ["./jest.setup.js"]
+  "testEnvironment": "node",
+  "setupFilesAfterEnv": ["./jest.setup.js"],
+  "testPathIgnorePatterns": ["/node_modules/", "/dist/"],
+  "moduleNameMapping": {
+    "^@/(.*)$": "<rootDir>/src/$1"
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(@hashgraph|@hashgraphonline|@langchain|@grpc)/)"
+  ],
+  "testTimeout": 30000,
+  "collectCoverageFrom": [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.d.ts",
+    "!src/**/__tests__/**",
+    "!src/**/tests/**"
+  ],
+  "coverageDirectory": "coverage",
+  "coverageReporters": ["text", "lcov", "html"],
+  "verbose": true,
+  "maxWorkers": 1
 }

@@ -1,4 +1,3 @@
-
 import { GenericPluginContext } from '../../../src/plugins/PluginInterface';
 import { StructuredTool } from '@langchain/core/tools';
 import { DynamicStructuredTool } from '@langchain/core/tools';
@@ -22,11 +21,14 @@ export class GenericWeatherPlugin extends GenericPlugin {
     this.apiKey = this.context.config.weatherApiKey as string;
 
     if (!this.apiKey) {
-      this.context.logger.warn('Weather API key not provided in config - plugin functionality will be limited');
+      this.context.logger.warn(
+        'Weather API key not provided in config - plugin functionality will be limited'
+      );
     }
 
-
-    this.context.logger.info(`Initialized GenericWeatherPlugin on network: ${this.context.client.getNetwork()}`);
+    this.context.logger.info(
+      `Initialized GenericWeatherPlugin on network: ${this.context.client.getNetwork()}`
+    );
   }
 
   getTools(): StructuredTool[] {

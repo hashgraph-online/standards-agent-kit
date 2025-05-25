@@ -155,6 +155,7 @@ export default class WeatherPlugin extends GenericPlugin {
   description = 'Provides tools to access weather data';
   version = '1.0.0';
   author = 'Hashgraph Online';
+  namespace = 'weather';
 
   private apiKey?: string;
 

@@ -1,38 +1,58 @@
 {
   "name": "@hashgraphonline/standards-agent-kit",
-  "version": "0.0.23",
+  "version": "0.0.27",
   "description": "A modular SDK for building on-chain autonomous agents using Hashgraph Online Standards, including HCS-10 for agent discovery and communication.",
   "type": "module",
-  "main": "./dist/index.es.js",
-  "module": "./dist/index.es.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/cjs/standards-agent-kit.cjs",
+  "module": "./dist/es/standards-agent-kit.es.js",
+  "types": "./dist/es/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.es.js",
-      "require": "./dist/index.es.js",
-      "default": "./dist/index.es.js"
-    }
+      "types": "./dist/es/index.d.ts",
+      "browser": {
+        "import": "./dist/umd/standards-agent-kit.umd.js",
+        "require": "./dist/umd/standards-agent-kit.umd.js"
+      },
+      "node": {
+        "import": "./dist/es/standards-agent-kit.es.js",
+        "require": "./dist/cjs/standards-agent-kit.cjs"
+      },
+      "import": "./dist/es/standards-agent-kit.es.js",
+      "require": "./dist/cjs/standards-agent-kit.cjs"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
-    "build": "vite build",
+    "clean": "rimraf dist",
+    "build:es": "BUILD_FORMAT=es vite build",
+    "build:cjs": "BUILD_FORMAT=cjs vite build",
+    "build:umd": "BUILD_FORMAT=umd vite build",
+    "build": "npm run clean && npm run build:es && npm run build:cjs && npm run build:umd",
     "test": "jest",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "release": "npm publish --access public",
-    "cli-demo": "tsx examples/cli-demo.ts",
-    "interactive-demo": "tsx examples/interactive-demo.ts",
-    "langchain-demo": "tsx examples/langchain-demo.ts",
-    "plugin-demo": "tsx examples/plugin-system-example.ts",
-    "plugin-weather": "tsx examples/plugins/weather/index.ts",
-    "plugin-defi": "tsx examples/plugins/defi/index.ts",
+    "release:canary": "npm run prepublishOnly && npm publish --tag canary --access public",
+    "version:canary": "npm version prerelease --preid canary --no-git-tag-version",
+    "publish:canary": "npm run version:canary && npm run release:canary",
+    "demo:cli": "tsx examples/cli-demo.ts",
+    "demo:interactive": "tsx examples/interactive-demo.ts",
+    "demo:langchain": "tsx examples/langchain-demo.ts",
+    "demo:plugin": "tsx examples/plugin-system-example.ts",
+    "demo:plugin:weather": "tsx examples/plugins/weather/index.ts",
+    "demo:plugin:defi": "tsx examples/plugins/defi/index.ts",
+    "demo:plugin:openconvai": "tsx examples/openconvai-plugin-example.ts",
     "standards-agent:start": "tsx examples/standards-expert/cli.ts -- start",
-    "standards-agent:process-docs": "tsx examples/standards-expert/cli.ts -- process-docs --all-repos"
+    "standards-agent:process-docs": "tsx examples/standards-expert/cli.ts -- process-docs --all-repos",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "hedera",
@@ -76,26 +96,28 @@
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.64.5",
-    "@hashgraphonline/standards-sdk": "^0.0.99",
-    "@langchain/community": "^0.3.41",
-    "@langchain/core": "^0.3.46",
-    "@langchain/openai": "^0.5.6",
+    "@hashgraphonline/hedera-agent-kit": "^0.0.15",
+    "@hashgraphonline/standards-sdk": "^0.0.111",
+    "@langchain/community": "^0.3.44",
+    "@langchain/core": "^0.3.57",
+    "@langchain/openai": "^0.5.11",
     "@octokit/rest": "^21.1.1",
-    "axios": "^1.6.8",
-    "chromadb": "^1.6.0",
-    "commander": "^11.1.0",
-    "dotenv": "^16.4.5",
-    "langchain": "^0.3.23",
-    "libsodium-wrappers": "^0.7.13",
-    "openai": "^4.28.0",
+    "axios": "^1.9.0",
+    "chromadb": "^2.4.6",
+    "commander": "^14.0.0",
+    "dotenv": "^16.5.0",
+    "langchain": "^0.3.27",
+    "libsodium-wrappers": "^0.7.15",
+    "openai": "^4.103.0",
     "prompts": "^2.4.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3",
-    "zod": "^3.24.2"
+    "typescript": "^5.8.3",
+    "zod": "^3.25.28"
   },
   "devDependencies": {
     "@swc/core": "^1.11.21",
     "@swc/jest": "^0.2.36",
+    "@hashgraphonline/standards-agent-kit": "0.0.26",
     "@types/jest": "^29.5.12",
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/node": "^20.11.30",
@@ -104,10 +126,14 @@
     "eslint": "^8.56.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
+    "rimraf": "^6.0.1",
+    "terser": "^5.39.2",
     "text-encoding": "^0.7.0",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.19.3",
-    "vite": "^6.2.3",
-    "vite-plugin-dts": "^4.5.3"
+    "vite": "^6.3.5",
+    "vite-plugin-dts": "^4.5.4",
+    "vite-plugin-node-polyfills": "^0.23.0",
+    "vite-plugin-string-replace": "^1.1.3"
   }
 }

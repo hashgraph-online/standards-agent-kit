@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { GetHbarPriceTool } from '../HbarPricePlugin';
+import { GetHbarPriceTool } from '../../src/plugins/hedera/HbarPricePlugin';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
