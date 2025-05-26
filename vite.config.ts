@@ -1,11 +1,10 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import StringReplace from 'vite-plugin-string-replace';
 import type { LibraryFormats } from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(async () => {
   const format = (process.env.BUILD_FORMAT || 'es') as LibraryFormats;
   let outputDir: string;
 
@@ -51,15 +50,20 @@ export default defineConfig(() => {
       exclude: ['**/*.d.ts', 'examples/**/*', 'vite.config.ts'],
       outDir: outputDir,
     }),
-    nodePolyfills({
+  ];
+
+  // Only add nodePolyfills for UMD builds
+  if (format === 'umd') {
+    const { nodePolyfills } = await import('vite-plugin-node-polyfills');
+    plugins.push(nodePolyfills({
       globals: {
         Buffer: true,
         global: true,
         process: true,
       },
       protocolImports: true,
-    }),
-  ];
+    }));
+  }
 
   return {
     plugins,
