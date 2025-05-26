@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-agent-kit",
-  "version": "0.0.28-canary.1",
+  "version": "0.0.28-canary.2",
   "description": "A modular SDK for building on-chain autonomous agents using Hashgraph Online Standards, including HCS-10 for agent discovery and communication.",
   "type": "module",
   "main": "./dist/cjs/standards-agent-kit.cjs",
@@ -96,7 +96,6 @@
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.64.5",
-    "@hashgraphonline/hedera-agent-kit": "^0.0.18-canary.9",
     "@hashgraphonline/standards-sdk": "^0.0.112-canary.3",
     "@langchain/community": "^0.3.44",
     "@langchain/core": "^0.3.57",
