@@ -126,10 +126,6 @@ export class ConnectionMonitorTool extends StructuredTool {
     });
   }
 
-  async call(args: z.infer<this['schema']>): Promise<string> {
-    return this._call(args);
-  }
-
   protected async _call({
     acceptAll = false,
     targetAccountId,

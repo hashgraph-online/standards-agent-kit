@@ -14,7 +14,11 @@ export interface ConnectionMap {
   confirmedRequestIds: Set<number>;
 }
 
-const logger = Logger.getInstance({ module: 'connectionUtils' });
+const shouldSilence = process.env.DISABLE_LOGGING === 'true';
+const logger = Logger.getInstance({
+  module: 'connectionUtils',
+  silent: shouldSilence,
+});
 
 /**
  * Fetches and processes inbound/outbound messages and profiles

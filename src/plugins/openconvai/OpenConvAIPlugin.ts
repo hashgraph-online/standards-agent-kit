@@ -37,7 +37,7 @@ export class OpenConvAIPlugin extends GenericPlugin {
   private stateManager?: IStateManager;
   private tools: StructuredTool[] = [];
 
-  async initialize(context: GenericPluginContext): Promise<void> {
+  override async initialize(context: GenericPluginContext): Promise<void> {
     await super.initialize(context);
 
     if (!(context.client instanceof HCS10Client)) {
@@ -113,7 +113,7 @@ export class OpenConvAIPlugin extends GenericPlugin {
     return this.tools;
   }
 
-  async cleanup(): Promise<void> {
+  override async cleanup(): Promise<void> {
     this.tools = [];
     this.hcs10Client = undefined;
     this.stateManager = undefined;

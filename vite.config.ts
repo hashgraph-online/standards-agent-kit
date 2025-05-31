@@ -18,7 +18,6 @@ export default defineConfig(async () => {
 
   const externalDependencies = [
     '@hashgraph/sdk',
-    '@hashgraphonline/hedera-agent-kit',
     '@hashgraphonline/standards-sdk',
     '@langchain/community',
     '@langchain/core',
@@ -55,14 +54,16 @@ export default defineConfig(async () => {
   // Only add nodePolyfills for UMD builds
   if (format === 'umd') {
     const { nodePolyfills } = await import('vite-plugin-node-polyfills');
-    plugins.push(nodePolyfills({
-      globals: {
-        Buffer: true,
-        global: true,
-        process: true,
-      },
-      protocolImports: true,
-    }));
+    plugins.push(
+      nodePolyfills({
+        globals: {
+          Buffer: true,
+          global: true,
+          process: true,
+        },
+        protocolImports: true,
+      })
+    );
   }
 
   return {

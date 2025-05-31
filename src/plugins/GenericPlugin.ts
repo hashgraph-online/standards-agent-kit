@@ -15,5 +15,5 @@ export abstract class GenericPlugin extends BasePlugin<GenericPluginContext> {
    * Get the tools provided by this plugin
    * @returns Array of tools provided by this plugin
    */
-  abstract getTools(): StructuredTool[];
+  abstract override getTools(): StructuredTool[];
 }

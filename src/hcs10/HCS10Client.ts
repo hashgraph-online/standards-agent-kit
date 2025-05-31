@@ -77,8 +77,10 @@ export class HCS10Client {
     });
     this.guardedRegistryBaseUrl = options?.registryUrl || '';
     this.useEncryption = options?.useEncryption || false;
+    const shouldSilence = process.env.DISABLE_LOGGING === 'true';
     this.logger = new Logger({
       level: options?.logLevel || 'info',
+      silent: shouldSilence,
     });
   }
 
@@ -435,9 +437,7 @@ export class HCS10Client {
   /**
    * Validates that the operator account exists and has proper access for agent operations
    */
-  private async validateOperator(
-    options: ClientValidationOptions
-  ): Promise<{
+  private async validateOperator(options: ClientValidationOptions): Promise<{
     isValid: boolean;
     operator?: { accountId: string };
     error?: string;
@@ -463,9 +463,7 @@ export class HCS10Client {
     }
   }
 
-  async initializeWithValidation(
-    options: ClientValidationOptions
-  ): Promise<{
+  async initializeWithValidation(options: ClientValidationOptions): Promise<{
     isValid: boolean;
     operator?: { accountId: string };
     error?: string;

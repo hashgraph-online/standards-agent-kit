@@ -1,21 +1,21 @@
-import { HCS10Client, StandardNetworkType } from './hcs10/HCS10Client';
-import { RegisterAgentTool } from './tools/RegisterAgentTool';
-import { SendMessageTool } from './tools/SendMessageTool';
-import { ConnectionTool } from './tools/ConnectionTool';
-import { IStateManager } from './state/state-types';
-import { OpenConvaiState } from './state/open-convai-state';
-import { FindRegistrationsTool } from './tools/FindRegistrationsTool';
-import { InitiateConnectionTool } from './tools/InitiateConnectionTool';
-import { ListConnectionsTool } from './tools/ListConnectionsTool';
-import { SendMessageToConnectionTool } from './tools/SendMessageToConnectionTool';
-import { CheckMessagesTool } from './tools/CheckMessagesTool';
-import { ConnectionMonitorTool } from './tools/ConnectionMonitorTool';
-import { ManageConnectionRequestsTool } from './tools/ManageConnectionRequestsTool';
-import { AcceptConnectionRequestTool } from './tools/AcceptConnectionRequestTool';
-import { RetrieveProfileTool } from './tools/RetrieveProfileTool';
-import { ListUnapprovedConnectionRequestsTool } from './tools/ListUnapprovedConnectionRequestsTool';
+import { HCS10Client, StandardNetworkType } from '../hcs10/HCS10Client';
+import { RegisterAgentTool } from '../tools/RegisterAgentTool';
+import { SendMessageTool } from '../tools/SendMessageTool';
+import { ConnectionTool } from '../tools/ConnectionTool';
+import { IStateManager } from '../state/state-types';
+import { OpenConvaiState } from '../state/open-convai-state';
+import { FindRegistrationsTool } from '../tools/FindRegistrationsTool';
+import { InitiateConnectionTool } from '../tools/InitiateConnectionTool';
+import { ListConnectionsTool } from '../tools/ListConnectionsTool';
+import { SendMessageToConnectionTool } from '../tools/SendMessageToConnectionTool';
+import { CheckMessagesTool } from '../tools/CheckMessagesTool';
+import { ConnectionMonitorTool } from '../tools/ConnectionMonitorTool';
+import { ManageConnectionRequestsTool } from '../tools/ManageConnectionRequestsTool';
+import { AcceptConnectionRequestTool } from '../tools/AcceptConnectionRequestTool';
+import { RetrieveProfileTool } from '../tools/RetrieveProfileTool';
+import { ListUnapprovedConnectionRequestsTool } from '../tools/ListUnapprovedConnectionRequestsTool';
 import { Logger } from '@hashgraphonline/standards-sdk';
-import { ENV_FILE_PATH } from './utils/state-tools';
+import { ENV_FILE_PATH } from '../utils/state-tools';
 
 export interface HCS10ClientConfig {
   operatorId?: string;
@@ -58,12 +58,14 @@ export interface HCS10Tools {
  * @param options - Initialization options
  * @returns Object containing hcs10Client and requested tools
  */
-export function initializeHCS10Client(options?: HCS10InitializationOptions): {
+export const initializeStandardsAgentKit = (
+  options?: HCS10InitializationOptions
+): {
   hcs10Client: HCS10Client;
   monitoringClient?: HCS10Client;
   tools: Partial<HCS10Tools>;
   stateManager: IStateManager;
-} {
+} => {
   const config = options?.clientConfig || {};
 
   const operatorId = config.operatorId || process.env.HEDERA_OPERATOR_ID;
@@ -90,8 +92,10 @@ export function initializeHCS10Client(options?: HCS10InitializationOptions): {
     );
   }
 
+  const shouldSilence = process.env.DISABLE_LOGGING === 'true';
   const logger = Logger.getInstance({
     level: config.logLevel || 'info',
+    silent: shouldSilence,
   });
 
   const stateManager =
@@ -180,4 +184,4 @@ export function initializeHCS10Client(options?: HCS10InitializationOptions): {
     tools,
     stateManager,
   };
-}
+};

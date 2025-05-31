@@ -36,10 +36,12 @@ export class OpenConvaiState implements IStateManager {
     defaultEnvFilePath?: string;
     defaultPrefix?: string;
     baseClient?: HCS10BaseClient;
+    disableLogging?: boolean;
   }) {
     this.defaultEnvFilePath = options?.defaultEnvFilePath;
     this.defaultPrefix = options?.defaultPrefix ?? 'TODD';
-    this.logger = new Logger({ module: 'OpenConvaiState' });
+    const shouldSilence = options?.disableLogging || process.env.DISABLE_LOGGING === 'true';
+    this.logger = new Logger({ module: 'OpenConvaiState', silent: shouldSilence });
 
     // Initialize ConnectionsManager immediately if baseClient is provided
     if (options?.baseClient) {

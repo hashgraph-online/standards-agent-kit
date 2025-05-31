@@ -70,21 +70,21 @@ export class InitiateConnectionTool extends StructuredTool {
         targetInboundTopicId,
         currentAgent.name
       );
-      let connectionRequestId: number | null = null;
       const sequenceNumberLong = requestResult?.topicSequenceNumber;
-      if (sequenceNumberLong !== null) {
-        try {
-          connectionRequestId = sequenceNumberLong.toNumber();
-          if (isNaN(connectionRequestId)) {
-            throw new Error('Converted sequence number is NaN.');
-          }
-        } catch (conversionError) {
-          throw new Error(
-            `Failed to convert connection request sequence number: ${conversionError}`
-          );
-        }
-      } else {
+      if (!sequenceNumberLong) {
         throw new Error('Connection request sequence number not found.');
+      }
+      
+      let connectionRequestId: number;
+      try {
+        connectionRequestId = sequenceNumberLong.toNumber();
+        if (isNaN(connectionRequestId)) {
+          throw new Error('Converted sequence number is NaN.');
+        }
+      } catch (conversionError) {
+        throw new Error(
+          `Failed to convert connection request sequence number: ${conversionError}`
+        );
       }
 
       const confirmationTimeoutMs = 60000;

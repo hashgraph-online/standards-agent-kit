@@ -10,5 +10,5 @@ export abstract class HCS10Plugin extends BasePlugin<PluginContext> {
    * Get the tools provided by this plugin
    * @returns Array of tools provided by this plugin
    */
-  abstract getTools(): StructuredTool[];
+  abstract override getTools(): StructuredTool[];
 }

@@ -159,7 +159,7 @@ export default class WeatherPlugin extends GenericPlugin {
 
   private apiKey?: string;
 
-  async initialize(context: GenericPluginContext): Promise<void> {
+  override async initialize(context: GenericPluginContext): Promise<void> {
     await super.initialize(context);
     this.apiKey = context.config.weatherApiKey as string | undefined;
 
