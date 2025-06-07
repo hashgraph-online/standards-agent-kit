@@ -94,4 +94,4 @@ async function openConvAIPluginExample(): Promise<void> {
   }
 }
 
-openConvAIPluginExample().catch(console.error); 
+openConvAIPluginExample().catch(console.error);

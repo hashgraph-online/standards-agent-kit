@@ -142,4 +142,3 @@ describe('Platform Adapter', () => {
     expect(agent.id).toBe('ext-123');
   });
 });
- 

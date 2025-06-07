@@ -74,7 +74,7 @@ export class RetrieveProfileTool extends StructuredTool {
           `Successfully retrieved profile for ${targetAccountId}.`
         );
 
-        return JSON.stringify(result.profile, null, 2); 
+        return JSON.stringify(result.profile, null, 2);
       } else {
         const errorMessage = `Error retrieving profile for ${targetAccountId}: ${
           result.error || 'Profile not found or invalid.'

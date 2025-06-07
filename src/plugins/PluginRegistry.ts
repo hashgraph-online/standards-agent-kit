@@ -9,7 +9,7 @@ export class PluginRegistry {
   private plugins: Map<string, IPlugin> = new Map();
   private context: PluginContext;
   private logger: Logger;
-  
+
   /**
    * Creates a new PluginRegistry instance
    * @param context The context to provide to plugins during initialization
@@ -18,7 +18,7 @@ export class PluginRegistry {
     this.context = context;
     this.logger = context.logger;
   }
-  
+
   /**
    * Register a plugin with the registry
    * @param plugin The plugin to register
@@ -28,12 +28,12 @@ export class PluginRegistry {
     if (this.plugins.has(plugin.id)) {
       throw new Error(`Plugin with ID ${plugin.id} is already registered`);
     }
-    
+
     await plugin.initialize(this.context);
     this.plugins.set(plugin.id, plugin);
     this.logger.info(`Plugin registered: ${plugin.name} (${plugin.id}) v${plugin.version}`);
   }
-  
+
   /**
    * Get a plugin by ID
    * @param id The ID of the plugin to retrieve
@@ -42,7 +42,7 @@ export class PluginRegistry {
   getPlugin(id: string): IPlugin | undefined {
     return this.plugins.get(id);
   }
-  
+
   /**
    * Get all registered plugins
    * @returns Array of all registered plugins
@@ -50,7 +50,7 @@ export class PluginRegistry {
   getAllPlugins(): IPlugin[] {
     return Array.from(this.plugins.values());
   }
-  
+
   /**
    * Get all tools from all registered plugins
    * @returns Array of all tools provided by registered plugins
@@ -58,7 +58,7 @@ export class PluginRegistry {
   getAllTools(): StructuredTool[] {
     return this.getAllPlugins().flatMap(plugin => plugin.getTools());
   }
-  
+
   /**
    * Unregister a plugin
    * @param id The ID of the plugin to unregister
@@ -69,7 +69,7 @@ export class PluginRegistry {
     if (!plugin) {
       return false;
     }
-    
+
     if (plugin.cleanup) {
       try {
         await plugin.cleanup();
@@ -77,15 +77,15 @@ export class PluginRegistry {
         this.logger.error(`Error during plugin cleanup: ${error}`);
       }
     }
-    
+
     const result = this.plugins.delete(id);
     if (result) {
       this.logger.info(`Plugin unregistered: ${plugin.name} (${plugin.id})`);
     }
-    
+
     return result;
   }
-  
+
   /**
    * Unregister all plugins
    */

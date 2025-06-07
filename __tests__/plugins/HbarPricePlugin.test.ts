@@ -122,4 +122,4 @@ describe('HbarPricePlugin Tools - Integration Test', () => {
       expect(price).toBeLessThan(1.0);
     }
   }, 15000);
-}); 
+});

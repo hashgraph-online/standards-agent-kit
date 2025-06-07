@@ -74,7 +74,7 @@ export class InitiateConnectionTool extends StructuredTool {
       if (!sequenceNumberLong) {
         throw new Error('Connection request sequence number not found.');
       }
-      
+
       let connectionRequestId: number;
       try {
         connectionRequestId = sequenceNumberLong.toNumber();

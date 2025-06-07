@@ -100,7 +100,7 @@ Use 'lastMessagesCount' to specify how many latest messages to retrieve (default
           const msgTimestampNanos = msg.timestamp * 1_000_000;
           return msgTimestampNanos > lastProcessedTimestamp;
         });
-        
+
         if (messagesToProcess.length > 0) {
           latestTimestampNanos = messagesToProcess.reduce(
             (maxTs, msg) => Math.max(maxTs, msg.timestamp * 1_000_000),
