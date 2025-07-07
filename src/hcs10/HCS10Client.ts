@@ -313,7 +313,7 @@ export class HCS10Client {
         (a: { timestamp: number }, b: { timestamp: number }) =>
           a.timestamp - b.timestamp
       );
-      return { messages: mappedMessages };
+      return { messages: mappedMessages as HCSMessageWithTimestamp[] };
     } catch (error) {
       this.logger.error(`Error getting messages from topic ${topicId}:`, error);
       return { messages: [] };
@@ -323,7 +323,8 @@ export class HCS10Client {
   public async getMessageStream(topicId: string): Promise<{
     messages: HCSMessage[];
   }> {
-    return this.standardClient.getMessageStream(topicId);
+    const result = this.standardClient.getMessageStream(topicId);
+    return result as Promise<{ messages: HCSMessage[] }>;
   }
 
   /**

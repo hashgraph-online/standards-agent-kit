@@ -1,5 +1,4 @@
-import { GenericPlugin, GenericPluginContext } from '../../../src/plugins';
-import { StructuredTool } from '@langchain/core/tools';
+import { BasePlugin, GenericPluginContext, BaseHederaQueryTool, HederaTool, HederaAgentKit } from 'hedera-agent-kit';
 import { z } from 'zod';
 import axios from 'axios';
 
@@ -22,26 +21,31 @@ interface ForecastDayData {
  * an external web service (Weather API in this case).
  */
 
+const GetCurrentWeatherSchema = z.object({
+  location: z.string().describe('The city and state, e.g. San Francisco, CA'),
+  unit: z
+    .enum(['celsius', 'fahrenheit'])
+    .optional()
+    .describe('The unit of temperature'),
+});
+
 /**
  * Tool for getting current weather information
  */
-class GetCurrentWeatherTool extends StructuredTool {
+class GetCurrentWeatherTool extends BaseHederaQueryTool<typeof GetCurrentWeatherSchema> {
   name = 'get_current_weather';
   description = 'Get the current weather for a location';
+  specificInputSchema = GetCurrentWeatherSchema;
+  namespace = 'weather';
 
-  schema = z.object({
-    location: z.string().describe('The city and state, e.g. San Francisco, CA'),
-    unit: z
-      .enum(['celsius', 'fahrenheit'])
-      .optional()
-      .describe('The unit of temperature'),
-  });
-
-  constructor(private apiKey?: string) {
-    super();
+  constructor(params: { hederaKit: HederaAgentKit; logger?: any; apiKey?: string }) {
+    super(params);
+    this.apiKey = params.apiKey;
   }
 
-  async _call(input: z.infer<typeof this.schema>): Promise<string> {
+  private apiKey?: string;
+
+  protected async executeQuery(input: z.infer<typeof GetCurrentWeatherSchema>): Promise<string> {
     if (!this.apiKey) {
       return 'Error: Weather API key not configured. Please set weatherApiKey in the plugin configuration.';
     }
@@ -72,35 +76,37 @@ class GetCurrentWeatherTool extends StructuredTool {
   }
 }
 
+const GetWeatherForecastSchema = z.object({
+  location: z.string().describe('The city and state, e.g. San Francisco, CA'),
+  days: z
+    .number()
+    .min(1)
+    .max(7)
+    .optional()
+    .describe('Number of days for the forecast (1-7, default: 3)'),
+  unit: z
+    .enum(['celsius', 'fahrenheit'])
+    .optional()
+    .describe('The unit of temperature'),
+});
+
 /**
  * Tool for getting weather forecast
  */
-class GetWeatherForecastTool extends StructuredTool {
+class GetWeatherForecastTool extends BaseHederaQueryTool<typeof GetWeatherForecastSchema> {
   name = 'get_weather_forecast';
   description = 'Get the weather forecast for a location';
+  specificInputSchema = GetWeatherForecastSchema;
+  namespace = 'weather';
 
-  schema = z.object({
-    location: z.string().describe('The city and state, e.g. San Francisco, CA'),
-    days: z
-      .number()
-      .min(1)
-      .max(7)
-      .optional()
-      .describe('Number of days for the forecast (1-7, default: 3)'),
-    unit: z
-      .enum(['celsius', 'fahrenheit'])
-      .optional()
-      .describe('The unit of temperature'),
-  });
+  constructor(params: { hederaKit: HederaAgentKit; logger?: any; apiKey?: string }) {
+    super(params);
+    this.apiKey = params.apiKey;
+  }
 
   private apiKey?: string;
 
-  constructor(apiKey?: string) {
-    super();
-    this.apiKey = apiKey;
-  }
-
-  async _call(input: z.infer<typeof this.schema>): Promise<string> {
+  protected async executeQuery(input: z.infer<typeof GetWeatherForecastSchema>): Promise<string> {
     if (!this.apiKey) {
       return 'Error: Weather API key not configured. Please set weatherApiKey in the plugin configuration.';
     }
@@ -148,16 +154,17 @@ class GetWeatherForecastTool extends StructuredTool {
 
 /**
  * Weather API Plugin for the Standards Agent Kit
+ * Uses BaseHederaQueryTool for consistent tool architecture
  */
-export default class WeatherPlugin extends GenericPlugin {
+export default class WeatherPlugin extends BasePlugin<GenericPluginContext> {
   id = 'weather-api';
   name = 'Weather API Plugin';
   description = 'Provides tools to access weather data';
   version = '1.0.0';
   author = 'Hashgraph Online';
-  namespace = 'weather';
 
   private apiKey?: string;
+  private tools: HederaTool[] = [];
 
   override async initialize(context: GenericPluginContext): Promise<void> {
     await super.initialize(context);
@@ -168,12 +175,21 @@ export default class WeatherPlugin extends GenericPlugin {
         'Weather API key not provided. Weather tools will not function correctly.'
       );
     }
+
+    this.initializeTools();
   }
 
-  getTools(): StructuredTool[] {
-    return [
-      new GetCurrentWeatherTool(this.apiKey),
-      new GetWeatherForecastTool(this.apiKey),
+  private initializeTools(): void {
+    const hederaKit = this.context.config.hederaKit as HederaAgentKit;
+    const logger = this.context.logger;
+
+    this.tools = [
+      new GetCurrentWeatherTool({ hederaKit, logger, apiKey: this.apiKey }),
+      new GetWeatherForecastTool({ hederaKit, logger, apiKey: this.apiKey }),
     ];
+  }
+
+  override getTools(): HederaTool[] {
+    return this.tools;
   }
 }

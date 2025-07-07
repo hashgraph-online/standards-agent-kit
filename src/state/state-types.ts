@@ -1,8 +1,6 @@
 import {
   HCS10BaseClient,
-  ConnectionsManager,
   AIAgentProfile,
-  Connection,
   IConnectionsManager,
 } from '@hashgraphonline/standards-sdk';
 
@@ -106,7 +104,7 @@ export interface IStateManager {
   /**
    * Sets the current active agent, clearing any previous connections.
    */
-  setCurrentAgent(agent: RegisteredAgent | null): void;
+  setCurrentAgent(_agent: RegisteredAgent | null): void;
 
   /**
    * Gets the current active agent.
@@ -117,13 +115,13 @@ export interface IStateManager {
    * Adds a new active connection to the state.
    * Will not add duplicates based on connectionTopicId.
    */
-  addActiveConnection(connection: ActiveConnection): void;
+  addActiveConnection(_connection: ActiveConnection): void;
 
   /**
    * Updates an existing connection or adds it if not found.
    * Preserves existing properties when updating.
    */
-  updateOrAddConnection(connection: ActiveConnection): void;
+  updateOrAddConnection(_connection: ActiveConnection): void;
 
   /**
    * Lists all active connections for the current agent.
@@ -136,25 +134,25 @@ export interface IStateManager {
    * - A target account ID
    * - A connection topic ID
    */
-  getConnectionByIdentifier(identifier: string): ActiveConnection | undefined;
+  getConnectionByIdentifier(_identifier: string): ActiveConnection | undefined;
 
   /**
    * Gets the last processed message timestamp for a connection.
    */
-  getLastTimestamp(connectionTopicId: string): number;
+  getLastTimestamp(_connectionTopicId: string): number;
 
   /**
    * Updates the last processed message timestamp for a connection.
    */
-  updateTimestamp(connectionTopicId: string, timestampNanos: number): void;
+  updateTimestamp(_connectionTopicId: string, _timestampNanos: number): void;
 
   /**
    * Persists agent data to storage
    * Implementation may vary depending on the state manager
    */
   persistAgentData?(
-    agent: RegisteredAgent,
-    options?: AgentPersistenceOptions
+    _agent: RegisteredAgent,
+    _options?: AgentPersistenceOptions
   ): Promise<void>;
 
   /**
@@ -162,7 +160,7 @@ export interface IStateManager {
    * @param baseClient - The HCS10BaseClient instance to use
    * @returns The initialized ConnectionsManager
    */
-  initializeConnectionsManager(baseClient: HCS10BaseClient): IConnectionsManager;
+  initializeConnectionsManager(_baseClient: HCS10BaseClient): IConnectionsManager;
 
   /**
    * Gets the ConnectionsManager instance

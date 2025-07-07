@@ -63,7 +63,7 @@ async function openConvAIPluginExample(): Promise<void> {
 
     if (findRegistrationsTool) {
       try {
-        const result = await findRegistrationsTool.invoke({
+        const result = await findRegistrationsTool.execute({
           tags: ['ai-agent'],
         });
         console.log('Find registrations result:', result);

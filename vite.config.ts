@@ -51,6 +51,17 @@ export default defineConfig(async () => {
     }),
   ];
 
+  // Add CommonJS plugin for UMD builds to handle js-sha3 and other CommonJS modules
+  if (format === 'umd') {
+    const { default: commonjs } = await import('@rollup/plugin-commonjs');
+    plugins.push(
+      commonjs({
+        include: ['node_modules/**'],
+        transformMixedEsModules: true,
+      })
+    );
+  }
+
   // Only add nodePolyfills for UMD builds
   if (format === 'umd') {
     const { nodePolyfills } = await import('vite-plugin-node-polyfills');
@@ -86,6 +97,19 @@ export default defineConfig(async () => {
       rollupOptions: {
         external: (id: string) => {
           if (format === 'umd') {
+            // For UMD builds, externalize dependencies that cause build issues
+            // This follows the same pattern as hedera-agent-kit for consistency
+            if (id.startsWith('unenv/') || 
+                id === 'tweetnacl' || 
+                id === 'js-sha3' ||
+                id === 'pino' ||
+                id.includes('@hashgraph/sdk') ||
+                id.includes('@hashgraph/cryptography') ||
+                id.includes('@hashgraph/proto') ||
+                id.includes('@hashgraphonline/standards-sdk') ||
+                id.includes('hedera-agent-kit')) {
+              return true;
+            }
             return false;
           }
           return (
@@ -107,7 +131,7 @@ export default defineConfig(async () => {
                 globals: (id: string) => {
                   const globalMap: Record<string, string> = {
                     '@hashgraph/sdk': 'HederaSDK',
-                    '@hashgraphonline/hedera-agent-kit': 'HederaAgentKit',
+                    'hedera-agent-kit': 'HederaAgentKit',
                     '@hashgraphonline/standards-sdk': 'StandardsSDK',
                     '@langchain/community': 'LangchainCommunity',
                     '@langchain/core': 'LangchainCore',
@@ -124,6 +148,11 @@ export default defineConfig(async () => {
                     'ts-node': 'TsNode',
                     typescript: 'TypeScript',
                     zod: 'Zod',
+                    'unenv/node/process': 'process',
+                    'unenv/node/fs': 'fs',
+                    'tweetnacl': 'nacl',
+                    'js-sha3': 'sha3',
+                    'pino': 'pino',
                   };
                   return globalMap[id] || id;
                 },

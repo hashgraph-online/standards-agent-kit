@@ -1,5 +1,4 @@
-import { Hbar } from "@hashgraph/sdk";
-import { TransferTransaction } from "@hashgraph/sdk";
+import { Hbar, TransferTransaction, Client } from "@hashgraph/sdk";
 import { Logger, HCS10Client, HederaMirrorNode } from "@hashgraphonline/standards-sdk";
 
 export const MIN_REQUIRED_USD = 2.0;
@@ -60,9 +59,9 @@ export async function ensureAgentHasEnoughHbar(
               );
 
               const fundTxResponse = await transferTx.execute(
-                baseClient.getClient() as any
+                baseClient.getClient() as Client
               );
-              await fundTxResponse.getReceipt(baseClient.getClient() as any);
+              await fundTxResponse.getReceipt(baseClient.getClient() as Client);
               logger.info(
                 `Successfully funded ${agentName} account ${accountId}.`
               );

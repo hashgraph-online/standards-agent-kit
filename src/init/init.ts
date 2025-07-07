@@ -1,26 +1,25 @@
-import { HCS10Client, StandardNetworkType } from '../hcs10/HCS10Client';
-import { RegisterAgentTool } from '../tools/RegisterAgentTool';
-import { SendMessageTool } from '../tools/SendMessageTool';
-import { ConnectionTool } from '../tools/ConnectionTool';
+import { HederaAgentKit, ServerSigner } from 'hedera-agent-kit';
+import { HCS10Builder } from '../builders/hcs10/hcs10-builder';
+import { RegisterAgentTool } from '../tools/hcs10/RegisterAgentTool';
+import { FindRegistrationsTool } from '../tools/hcs10/FindRegistrationsTool';
+import { InitiateConnectionTool } from '../tools/hcs10/InitiateConnectionTool';
+import { ListConnectionsTool } from '../tools/hcs10/ListConnectionsTool';
+import { SendMessageToConnectionTool } from '../tools/hcs10/SendMessageToConnectionTool';
+import { CheckMessagesTool } from '../tools/hcs10/CheckMessagesTool';
+import { ConnectionMonitorTool } from '../tools/hcs10/ConnectionMonitorTool';
+import { ManageConnectionRequestsTool } from '../tools/hcs10/ManageConnectionRequestsTool';
+import { AcceptConnectionRequestTool } from '../tools/hcs10/AcceptConnectionRequestTool';
+import { RetrieveProfileTool } from '../tools/hcs10/RetrieveProfileTool';
+import { ListUnapprovedConnectionRequestsTool } from '../tools/hcs10/ListUnapprovedConnectionRequestsTool';
 import { IStateManager } from '../state/state-types';
 import { OpenConvaiState } from '../state/open-convai-state';
-import { FindRegistrationsTool } from '../tools/FindRegistrationsTool';
-import { InitiateConnectionTool } from '../tools/InitiateConnectionTool';
-import { ListConnectionsTool } from '../tools/ListConnectionsTool';
-import { SendMessageToConnectionTool } from '../tools/SendMessageToConnectionTool';
-import { CheckMessagesTool } from '../tools/CheckMessagesTool';
-import { ConnectionMonitorTool } from '../tools/ConnectionMonitorTool';
-import { ManageConnectionRequestsTool } from '../tools/ManageConnectionRequestsTool';
-import { AcceptConnectionRequestTool } from '../tools/AcceptConnectionRequestTool';
-import { RetrieveProfileTool } from '../tools/RetrieveProfileTool';
-import { ListUnapprovedConnectionRequestsTool } from '../tools/ListUnapprovedConnectionRequestsTool';
 import { Logger } from '@hashgraphonline/standards-sdk';
 import { ENV_FILE_PATH } from '../utils/state-tools';
 
 export interface HCS10ClientConfig {
   operatorId?: string;
   operatorKey?: string;
-  network?: StandardNetworkType;
+  network?: 'mainnet' | 'testnet';
   useEncryption?: boolean;
   registryUrl?: string;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
@@ -44,8 +43,6 @@ export interface HCS10Tools {
   listConnectionsTool: ListConnectionsTool;
   sendMessageToConnectionTool: SendMessageToConnectionTool;
   checkMessagesTool: CheckMessagesTool;
-  sendMessageTool: SendMessageTool;
-  connectionTool: ConnectionTool;
   connectionMonitorTool: ConnectionMonitorTool;
   manageConnectionRequestsTool: ManageConnectionRequestsTool;
   acceptConnectionRequestTool: AcceptConnectionRequestTool;
@@ -56,16 +53,18 @@ export interface HCS10Tools {
  * Initializes the HCS10 client and returns pre-registered LangChain tools.
  *
  * @param options - Initialization options
- * @returns Object containing hcs10Client and requested tools
+ * @returns Object containing hederaKit, hcs10Builder and requested tools
  */
-export const initializeStandardsAgentKit = (
+export const initializeStandardsAgentKit = async (
   options?: HCS10InitializationOptions
-): {
-  hcs10Client: HCS10Client;
-  monitoringClient?: HCS10Client;
+): Promise<{
+  hederaKit: HederaAgentKit;
+  hcs10Builder: HCS10Builder;
+  monitoringHederaKit?: HederaAgentKit;
+  monitoringHcs10Builder?: HCS10Builder;
   tools: Partial<HCS10Tools>;
   stateManager: IStateManager;
-} => {
+}> => {
   const config = options?.clientConfig || {};
 
   const operatorId = config.operatorId || process.env.HEDERA_OPERATOR_ID;
@@ -74,7 +73,7 @@ export const initializeStandardsAgentKit = (
 
   const networkEnv = config.network || process.env.HEDERA_NETWORK || 'testnet';
 
-  let network: StandardNetworkType;
+  let network: 'mainnet' | 'testnet';
   if (networkEnv === 'mainnet') {
     network = 'mainnet';
   } else if (networkEnv === 'testnet') {
@@ -106,81 +105,104 @@ export const initializeStandardsAgentKit = (
     });
   logger.info('State manager initialized');
 
-  const hcs10Client = new HCS10Client(operatorId, operatorPrivateKey, network, {
+  // Create HederaAgentKit
+  const signer = new ServerSigner(operatorId, operatorPrivateKey, network);
+  const hederaKit = new HederaAgentKit(signer);
+  await hederaKit.initialize();
+  logger.info(`HederaAgentKit initialized for ${operatorId} on ${network}`);
+
+  // Create HCS10Builder
+  const hcs10Builder = new HCS10Builder(hederaKit, stateManager, {
     useEncryption: config.useEncryption,
     registryUrl: config.registryUrl,
+    logLevel: config.logLevel,
   });
-  logger.info(`HCS10Client initialized for ${operatorId} on ${network}`);
 
-  let monitoringClient: HCS10Client | undefined;
+  let monitoringHederaKit: HederaAgentKit | undefined;
+  let monitoringHcs10Builder: HCS10Builder | undefined;
+
   if (options?.monitoringClient) {
-    monitoringClient = new HCS10Client(
-      operatorId,
-      operatorPrivateKey,
-      network,
-      {
-        useEncryption: config.useEncryption,
-        registryUrl: config.registryUrl,
-        logLevel: 'error',
-      }
-    );
+    const monitoringSigner = new ServerSigner(operatorId, operatorPrivateKey, network);
+    monitoringHederaKit = new HederaAgentKit(monitoringSigner);
+    await monitoringHederaKit.initialize();
+    monitoringHcs10Builder = new HCS10Builder(monitoringHederaKit, stateManager, {
+      useEncryption: config.useEncryption,
+      registryUrl: config.registryUrl,
+      logLevel: 'error',
+    });
     logger.info('Monitoring client initialized');
   }
 
   const tools: Partial<HCS10Tools> = {};
 
-  tools.registerAgentTool = new RegisterAgentTool(hcs10Client, stateManager);
-  tools.sendMessageTool = new SendMessageTool(hcs10Client);
-  tools.connectionTool = new ConnectionTool({
-    client: monitoringClient || hcs10Client,
-    stateManager,
+  // Always create RegisterAgentTool
+  tools.registerAgentTool = new RegisterAgentTool({
+    hederaKit,
+    hcs10Builder,
+    logger: undefined,
   });
 
   if (options?.createAllTools) {
     tools.findRegistrationsTool = new FindRegistrationsTool({
-      hcsClient: hcs10Client,
+      hederaKit,
+      hcs10Builder,
+      logger: undefined,
     });
-    tools.retrieveProfileTool = new RetrieveProfileTool(hcs10Client);
+    tools.retrieveProfileTool = new RetrieveProfileTool({
+      hederaKit,
+      hcs10Builder,
+      logger: undefined,
+    });
     tools.initiateConnectionTool = new InitiateConnectionTool({
-      hcsClient: hcs10Client,
-      stateManager,
+      hederaKit,
+      hcs10Builder,
+      logger: undefined,
     });
     tools.listConnectionsTool = new ListConnectionsTool({
-      hcsClient: hcs10Client,
-      stateManager,
+      hederaKit,
+      hcs10Builder,
+      logger: undefined,
     });
     tools.sendMessageToConnectionTool = new SendMessageToConnectionTool({
-      hcsClient: hcs10Client,
-      stateManager,
+      hederaKit,
+      hcs10Builder,
+      logger: undefined,
     });
     tools.checkMessagesTool = new CheckMessagesTool({
-      hcsClient: hcs10Client,
-      stateManager,
+      hederaKit,
+      hcs10Builder,
+      logger: undefined,
     });
     tools.connectionMonitorTool = new ConnectionMonitorTool({
-      hcsClient: monitoringClient || hcs10Client,
-      stateManager,
+      hederaKit: monitoringHederaKit || hederaKit,
+      hcs10Builder: monitoringHcs10Builder || hcs10Builder,
+      logger: undefined,
     });
     tools.manageConnectionRequestsTool = new ManageConnectionRequestsTool({
-      hcsClient: hcs10Client,
-      stateManager,
+      hederaKit,
+      hcs10Builder,
+      logger: undefined,
     });
     tools.acceptConnectionRequestTool = new AcceptConnectionRequestTool({
-      hcsClient: hcs10Client,
-      stateManager,
+      hederaKit,
+      hcs10Builder,
+      logger: undefined,
     });
     tools.listUnapprovedConnectionRequestsTool =
       new ListUnapprovedConnectionRequestsTool({
-        stateManager,
-        hcsClient: hcs10Client,
+        hederaKit,
+        hcs10Builder,
+        logger: undefined,
       });
 
     logger.info('All tools initialized');
   }
 
   return {
-    hcs10Client,
-    monitoringClient,
+    hederaKit,
+    hcs10Builder,
+    monitoringHederaKit,
+    monitoringHcs10Builder,
     tools,
     stateManager,
   };

@@ -7,7 +7,7 @@
   "testEnvironment": "node",
   "setupFilesAfterEnv": ["./jest.setup.js"],
   "testPathIgnorePatterns": ["/node_modules/", "/dist/"],
-  "moduleNameMapping": {
+  "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/src/$1"
   },
   "transformIgnorePatterns": [

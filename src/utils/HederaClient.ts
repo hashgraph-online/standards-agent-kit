@@ -44,9 +44,9 @@ export class HederaClient {
             .setStartTime(0);
 
         try {
-            const subscription = query.subscribe(
+            query.subscribe(
                 this.client,
-                (message: TopicMessage | null, error: Error) => {
+                (_message: TopicMessage | null, error: Error) => {
                     if (error) {
                         onError(error);
                     }

@@ -38,106 +38,6 @@ jest.mock('path', () => ({
   extname: jest.fn(),
 }));
 
-// Mock for dynamic imports in PluginLoader
-jest.mock('./src/plugins/PluginLoader', () => {
-  const originalModule = jest.requireActual('./src/plugins/PluginLoader');
-
-  return {
-    ...originalModule,
-    PluginLoader: {
-      ...originalModule.PluginLoader,
-      loadFromDirectory: async (
-        directory,
-        context,
-        options = { initialize: true }
-      ) => {
-        const manifestPath = path.join(directory, 'plugin.json');
-
-        if (!fs.existsSync(manifestPath)) {
-          throw new Error(`Plugin manifest not found at ${manifestPath}`);
-        }
-
-        try {
-          const manifestContent = fs.readFileSync(manifestPath, 'utf8');
-          const manifest = JSON.parse(manifestContent);
-
-          // Validate manifest
-          if (!manifest.id || !manifest.main) {
-            throw new Error(
-              'Invalid plugin manifest: missing required fields (id, main)'
-            );
-          }
-
-          // Load the plugin module
-          const mainPath = path.join(directory, manifest.main);
-          if (!fs.existsSync(mainPath)) {
-            throw new Error(`Plugin main file not found at ${mainPath}`);
-          }
-
-          // Use our mocked import instead of the real dynamic import
-          const pluginModule = await global.importShim(mainPath);
-          const PluginClass = pluginModule.default || pluginModule[manifest.id];
-
-          if (!PluginClass) {
-            throw new Error(`Could not find plugin class in ${mainPath}`);
-          }
-
-          // Create an instance of the plugin
-          const plugin = new PluginClass();
-
-          // Initialize the plugin if requested
-          if (options.initialize) {
-            await plugin.initialize(context);
-          }
-
-          return plugin;
-        } catch (error) {
-          throw new Error(
-            `Failed to load plugin from directory ${directory}: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          );
-        }
-      },
-      loadFromPackage: async (
-        packageName,
-        context,
-        options = { initialize: true }
-      ) => {
-        try {
-          // Mock the package resolution
-          const packageDir = '/node_modules/' + packageName;
-
-          // Call loadFromDirectory to ensure the spy in the test is triggered
-          return originalModule.PluginLoader.loadFromDirectory(
-            packageDir,
-            context,
-            options
-          );
-        } catch (error) {
-          throw new Error(
-            `Failed to load plugin from package ${packageName}: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          );
-        }
-      },
-      isValidPlugin: (obj) => {
-        return (
-          obj &&
-          typeof obj.id === 'string' &&
-          typeof obj.name === 'string' &&
-          typeof obj.description === 'string' &&
-          typeof obj.version === 'string' &&
-          typeof obj.author === 'string' &&
-          typeof obj.initialize === 'function' &&
-          typeof obj.getTools === 'function'
-        );
-      },
-    },
-  };
-});
-
 // Mock for the connection info storage
 class MockStorage {
   constructor() {
@@ -387,6 +287,13 @@ jest.mock('@hashgraphonline/standards-sdk', () => {
       sendMessage: jest.fn(),
       getMessages: jest.fn(),
     })),
+    ConnectionsManager: jest.fn().mockImplementation(() => ({
+      updateOrAddConnection: jest.fn(),
+      getAllConnections: jest.fn().mockReturnValue([]),
+      getConnectionByTopicId: jest.fn(),
+      getConnectionByAccountId: jest.fn(),
+      clearAll: jest.fn(),
+    })),
   };
 });
 
@@ -430,3 +337,132 @@ jest.mock('pino-pretty', () => {
     write: jest.fn(),
   }));
 });
+
+// Mock hedera-agent-kit to fix import issues
+jest.mock('hedera-agent-kit', () => ({
+  BasePlugin: class MockBasePlugin {
+    constructor() {
+      this.context = null;
+    }
+    async initialize(context) {
+      this.context = context;
+    }
+    getTools() {
+      return [];
+    }
+  },
+  PluginRegistry: class MockPluginRegistry {
+    constructor(context) {
+      this.context = context;
+      this.plugins = new Map();
+    }
+    async registerPlugin(plugin) {
+      if (this.plugins.has(plugin.id)) {
+        throw new Error(`Plugin with id '${plugin.id}' is already registered`);
+      }
+      await plugin.initialize(this.context);
+      this.plugins.set(plugin.id, plugin);
+      if (this.context.logger) {
+        this.context.logger.info(`Plugin registered: ${plugin.id}`);
+      }
+    }
+    async unregisterPlugin(pluginId) {
+      const plugin = this.plugins.get(pluginId);
+      if (!plugin) {
+        return false;
+      }
+      if (plugin.cleanup) {
+        try {
+          await plugin.cleanup();
+        } catch (error) {
+          if (this.context.logger) {
+            this.context.logger.error(`Error during plugin cleanup: ${error.message}`);
+          }
+        }
+      }
+      this.plugins.delete(pluginId);
+      if (this.context.logger) {
+        this.context.logger.info(`Plugin unregistered: ${pluginId}`);
+      }
+      return true;
+    }
+    async unregisterAllPlugins() {
+      for (const [, plugin] of this.plugins) {
+        if (plugin.cleanup) {
+          try {
+            await plugin.cleanup();
+          } catch (error) {
+            if (this.context.logger) {
+              this.context.logger.error(`Error during plugin cleanup: ${error.message}`);
+            }
+          }
+        }
+      }
+      this.plugins.clear();
+    }
+    getPlugin(pluginId) {
+      return this.plugins.get(pluginId);
+    }
+    getAllPlugins() {
+      return Array.from(this.plugins.values());
+    }
+    getAllTools() {
+      return this.getAllPlugins().flatMap(plugin => plugin.getTools());
+    }
+  },
+  BaseHederaQueryTool: class MockBaseHederaQueryTool {
+    constructor(params) {
+      this.hederaKit = params.hederaKit;
+      this.logger = params.logger;
+    }
+    async execute(input) {
+      return 'mock result';
+    }
+  },
+  HederaGetHbarPriceTool: class MockHederaGetHbarPriceTool {
+    constructor(params = {}) {
+      this.hederaKit = params.hederaKit || {};
+      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
+    }
+    name = 'get_hbar_price';
+    description = 'Get current HBAR price';
+    async execute() {
+      return 'Mock HBAR price result';
+    }
+    async call(input) {
+      return this.execute(input);
+    }
+  },
+  HederaGetTokenInfoTool: class MockHederaGetTokenInfoTool {
+    constructor(params = {}) {
+      this.hederaKit = params.hederaKit || {};
+      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
+    }
+    name = 'get_token_info';
+    description = 'Get token information';
+  },
+  HederaTransferTokensTool: class MockHederaTransferTokensTool {
+    constructor(params = {}) {
+      this.hederaKit = params.hederaKit || {};
+      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
+    }
+    name = 'transfer_tokens';
+    description = 'Transfer tokens';
+  },
+  HederaGetAccountTokensTool: class MockHederaGetAccountTokensTool {
+    constructor(params = {}) {
+      this.hederaKit = params.hederaKit || {};
+      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
+    }
+    name = 'get_account_tokens';
+    description = 'Get account tokens';
+  },
+  HederaAssociateTokensTool: class MockHederaAssociateTokensTool {
+    constructor(params = {}) {
+      this.hederaKit = params.hederaKit || {};
+      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
+    }
+    name = 'associate_tokens';
+    description = 'Associate tokens';
+  },
+}));

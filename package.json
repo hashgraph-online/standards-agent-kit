@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-agent-kit",
-  "version": "0.0.38",
+  "version": "0.2.0",
   "description": "A modular SDK for building on-chain autonomous agents using Hashgraph Online Standards, including HCS-10 for agent discovery and communication.",
   "type": "module",
   "main": "./dist/cjs/standards-agent-kit.cjs",
@@ -12,7 +12,8 @@
       "import": "./dist/es/standards-agent-kit.es.js",
       "require": "./dist/cjs/standards-agent-kit.cjs",
       "default": "./dist/es/standards-agent-kit.es.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
@@ -25,16 +26,16 @@
     "build:es": "BUILD_FORMAT=es vite build",
     "build:cjs": "BUILD_FORMAT=cjs vite build",
     "build:umd": "BUILD_FORMAT=umd vite build",
-    "build": "npm run clean && npm run build:es && npm run build:cjs && npm run build:umd",
+    "build": "pnpm run clean && pnpm run build:es && pnpm run build:cjs && pnpm run build:umd",
     "test": "jest",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "prepare": "npm run build",
-    "prepublishOnly": "npm run build",
-    "release": "npm publish --access public",
-    "release:canary": "npm run prepublishOnly && npm publish --tag canary --access public",
-    "version:canary": "npm version prerelease --preid canary --no-git-tag-version",
-    "publish:canary": "npm run version:canary && npm run release:canary",
+    "prepare": "pnpm run build",
+    "prepublishOnly": "pnpm run build",
+    "release": "pnpm publish --access public",
+    "release:canary": "pnpm run prepublishOnly && pnpm publish --tag canary --access public",
+    "version:canary": "pnpm version prerelease --preid canary --no-git-tag-version",
+    "publish:canary": "pnpm run version:canary && pnpm run release:canary",
     "demo:cli": "tsx examples/cli-demo.ts",
     "demo:interactive": "tsx examples/interactive-demo.ts",
     "demo:langchain": "tsx examples/langchain-demo.ts",
@@ -87,27 +88,31 @@
     "access": "public"
   },
   "dependencies": {
-    "@hashgraph/sdk": "^2.65.1",
-    "@hashgraphonline/standards-sdk": "^0.0.130",
-    "@langchain/community": "^0.3.44",
-    "@langchain/core": "^0.3.57",
-    "@langchain/openai": "^0.5.11",
+    "@hashgraph/sdk": "^2.67.0",
+    "@hashgraphonline/standards-sdk": "^0.0.148",
+    "@langchain/community": "^0.3.48",
+    "@langchain/core": "^0.3.62",
+    "@langchain/openai": "^0.5.18",
     "@octokit/rest": "^21.1.1",
     "axios": "^1.9.0",
     "chromadb": "^2.4.6",
     "commander": "^14.0.0",
     "dotenv": "^16.5.0",
-    "langchain": "^0.3.27",
-    "openai": "^4.103.0",
+    "hedera-agent-kit": "^2.0.3",
+    "langchain": "^0.3.29",
+    "openai": "^5.8.2",
     "typescript": "^5.8.3",
     "zod": "^3.25.28"
   },
   "devDependencies": {
+    "@hashgraphonline/standards-agent-kit": "file:.yalc/@hashgraphonline/standards-agent-kit",
+    "@hashgraphonline/standards-agent-plugin": "^0.0.1",
+    "@rollup/plugin-commonjs": "^28.0.6",
     "@swc/core": "^1.11.21",
     "@swc/jest": "^0.2.36",
     "@types/jest": "^29.5.12",
     "@types/libsodium-wrappers": "^0.7.14",
-    "@types/node": "^20.11.30",
+    "@types/node": "^20.19.4",
     "@typescript-eslint/eslint-plugin": "^7.3.1",
     "@typescript-eslint/parser": "^7.3.1",
     "eslint": "^8.56.0",
@@ -122,5 +127,6 @@
     "vite-plugin-dts": "^4.5.4",
     "vite-plugin-node-polyfills": "^0.23.0",
     "vite-plugin-string-replace": "^1.1.3"
-  }
+  },
+  "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
 }

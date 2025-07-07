@@ -24,7 +24,7 @@ module.exports = {
     'no-trailing-spaces': 'error',
     semi: ['error', 'always'],
     'arrow-body-style': ['error', 'as-needed'],
-    'no-unused-vars': 'error',
+    'no-unused-vars': 'off',
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
   },
   overrides: [
