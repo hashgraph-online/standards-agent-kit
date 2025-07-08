@@ -203,6 +203,13 @@ export class HCS10Builder extends BaseServiceBuilder {
   }
 
   /**
+   * Get state manager instance
+   */
+  public getStateManager(): IStateManager | undefined {
+    return this.stateManager;
+  }
+
+  /**
    * Get account and signer information
    */
   public getAccountAndSigner(): { accountId: string; signer: PrivateKey } {

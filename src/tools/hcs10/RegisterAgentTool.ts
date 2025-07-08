@@ -4,6 +4,7 @@ import { BaseServiceBuilder } from 'hedera-agent-kit';
 import { HCS10Builder, RegisterAgentParams } from '../../builders/hcs10/hcs10-builder';
 import { BaseHCS10TransactionTool } from './base-hcs10-tools';
 import { HCS10TransactionToolParams } from './hcs10-tool-params';
+import { RegisteredAgent } from '../../state/state-types';
 
 const RegisterAgentZodSchema = z.object({
   name: z
@@ -209,5 +210,39 @@ export class RegisterAgentTool extends BaseHCS10TransactionTool<
     }
 
     await hcs10Builder.registerAgent(params);
+
+    // Handle setAsCurrent parameter (defaults to true)
+    const shouldSetAsCurrent = specificArgs.setAsCurrent !== false;
+    if (shouldSetAsCurrent) {
+      // Get the result from the builder using the execute method
+      const result = await hcs10Builder.execute();
+      if (result?.success && result.rawResult) {
+        const rawResult = result.rawResult as any;
+        
+        // Create RegisteredAgent object from the result
+        const registeredAgent: RegisteredAgent = {
+          name: specificArgs.name,
+          accountId: rawResult.accountId || rawResult.metadata?.accountId || rawResult.state?.agentMetadata?.accountId,
+          inboundTopicId: rawResult.inboundTopicId || rawResult.metadata?.inboundTopicId,
+          outboundTopicId: rawResult.outboundTopicId || rawResult.metadata?.outboundTopicId,
+          profileTopicId: rawResult.profileTopicId || rawResult.metadata?.profileTopicId,
+          privateKey: rawResult.privateKey || rawResult.metadata?.privateKey
+        };
+
+        // Get state manager from builder and set as current agent
+        const stateManager = hcs10Builder.getStateManager();
+        if (stateManager) {
+          stateManager.setCurrentAgent(registeredAgent);
+          
+          // Persist if persistence options provided
+          if (specificArgs.persistence && stateManager.persistAgentData) {
+            await stateManager.persistAgentData(registeredAgent, {
+              type: 'env-file',
+              prefix: specificArgs.persistence.prefix
+            });
+          }
+        }
+      }
+    }
   }
 }
