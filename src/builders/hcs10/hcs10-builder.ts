@@ -399,17 +399,19 @@ export class HCS10Builder extends BaseServiceBuilder {
     try {
       const result = await this.standardClient.getMessages(topicId);
 
-      const mappedMessages: HCSMessageWithTimestamp[] = result.messages.map((sdkMessage) => {
-        const timestamp = sdkMessage?.created?.getTime() || 0;
+      const mappedMessages: HCSMessageWithTimestamp[] = result.messages.map(
+        (sdkMessage) => {
+          const timestamp = sdkMessage?.created?.getTime() || 0;
 
-        return {
-          ...sdkMessage,
-          timestamp: timestamp,
-          data: sdkMessage.data || '',
-          sequence_number: sdkMessage.sequence_number,
-          p: 'hcs-10' as const,
-        } as HCSMessageWithTimestamp;
-      });
+          return {
+            ...sdkMessage,
+            timestamp: timestamp,
+            data: sdkMessage.data || '',
+            sequence_number: sdkMessage.sequence_number,
+            p: 'hcs-10' as const,
+          } as HCSMessageWithTimestamp;
+        }
+      );
       mappedMessages.sort(
         (a: { timestamp: number }, b: { timestamp: number }) =>
           a.timestamp - b.timestamp
@@ -439,7 +441,9 @@ export class HCS10Builder extends BaseServiceBuilder {
       );
     }
 
-    return this.standardClient.getMessageStream(topicId) as Promise<{ messages: HCSMessage[] }>;
+    return this.standardClient.getMessageStream(topicId) as Promise<{
+      messages: HCSMessage[];
+    }>;
   }
 
   /**
@@ -637,7 +641,8 @@ export class HCS10Builder extends BaseServiceBuilder {
     }
 
     try {
-      let profilePictureData: { buffer: Buffer; filename: string } | null = null;
+      let profilePictureData: { buffer: Buffer; filename: string } | null =
+        null;
       if (params.profilePicture) {
         profilePictureData = await this.loadProfilePicture(
           params.profilePicture
@@ -1516,7 +1521,10 @@ export class HCS10Builder extends BaseServiceBuilder {
       const messages = await this.getMessages(inboundTopicId);
 
       const unapprovedRequests = messages.messages
-        .filter((msg): msg is HCSMessageWithTimestamp & { op: string } => msg.op === 'connection_request')
+        .filter(
+          (msg): msg is HCSMessageWithTimestamp & { op: string } =>
+            msg.op === 'connection_request'
+        )
         .map((msg) => ({
           requestId: msg.sequence_number,
           fromAccountId: msg.operator_id?.split('@')[1] || 'unknown',
@@ -1524,7 +1532,10 @@ export class HCS10Builder extends BaseServiceBuilder {
           memo: msg.m || '',
           data: msg.data,
         }))
-        .filter((req): req is typeof req & { fromAccountId: string } => req.fromAccountId !== 'unknown');
+        .filter(
+          (req): req is typeof req & { fromAccountId: string } =>
+            req.fromAccountId !== 'unknown'
+        );
 
       this.executeResult = {
         success: true,
@@ -2060,7 +2071,10 @@ export class HCS10Builder extends BaseServiceBuilder {
 
       if (profile.social && Object.keys(profile.social).length > 0) {
         profileDetails += `Social: ${Object.entries(profile.social)
-          .map(([platform, handle]: [string, unknown]): string => `${platform}: ${handle}`)
+          .map(
+            ([platform, handle]: [string, unknown]): string =>
+              `${platform}: ${handle}`
+          )
           .join(', ')}\n`;
       }
 

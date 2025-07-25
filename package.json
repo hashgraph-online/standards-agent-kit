@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-agent-kit",
-  "version": "0.2.1",
+  "version": "0.2.102",
   "description": "A modular SDK for building on-chain autonomous agents using Hashgraph Online Standards, including HCS-10 for agent discovery and communication.",
   "type": "module",
   "main": "./dist/cjs/standards-agent-kit.cjs",
@@ -69,7 +69,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hashgraph-online/standards-agent-kit"
+    "url": "git+https://github.com/hashgraph-online/standards-agent-kit.git"
   },
   "bugs": {
     "url": "https://github.com/hashgraph-online/standards-agent-kit/issues"
@@ -89,7 +89,7 @@
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.67.0",
-    "@hashgraphonline/standards-sdk": "^0.0.148",
+    "@hashgraphonline/standards-sdk": "^0.0.149",
     "@langchain/community": "^0.3.48",
     "@langchain/core": "^0.3.62",
     "@langchain/openai": "^0.5.18",
@@ -105,8 +105,7 @@
     "zod": "^3.25.28"
   },
   "devDependencies": {
-    "@hashgraphonline/standards-agent-kit": "file:.yalc/@hashgraphonline/standards-agent-kit",
-    "@hashgraphonline/standards-agent-plugin": "^0.0.1",
+    "@hashgraphonline/standards-agent-plugin": "^0.0.3",
     "@rollup/plugin-commonjs": "^28.0.6",
     "@swc/core": "^1.11.21",
     "@swc/jest": "^0.2.36",

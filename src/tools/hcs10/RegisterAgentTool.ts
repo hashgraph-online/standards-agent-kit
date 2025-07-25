@@ -1,10 +1,15 @@
 import { AIAgentCapability } from '@hashgraphonline/standards-sdk';
 import { z } from 'zod';
 import { BaseServiceBuilder } from 'hedera-agent-kit';
-import { HCS10Builder, RegisterAgentParams } from '../../builders/hcs10/hcs10-builder';
+import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import {
+  HCS10Builder,
+  RegisterAgentParams,
+} from '../../builders/hcs10/hcs10-builder';
 import { BaseHCS10TransactionTool } from './base-hcs10-tools';
 import { HCS10TransactionToolParams } from './hcs10-tool-params';
 import { RegisteredAgent } from '../../state/state-types';
+import { NaturalLanguageMapper } from './natural-language-mapper';
 
 const RegisterAgentZodSchema = z.object({
   name: z
@@ -20,7 +25,17 @@ const RegisterAgentZodSchema = z.object({
   alias: z
     .string()
     .optional()
-    .describe('Optional custom username/alias for the agent'),
+    .transform((val) => {
+      if (!val || val.toLowerCase().includes('random')) {
+        const timestamp = Date.now().toString(36);
+        const randomChars = Math.random().toString(36);
+        return `bot${timestamp}${randomChars}`;
+      }
+      return val;
+    })
+    .describe(
+      'Optional custom username/alias for the agent. Use "random" to generate a unique alias'
+    ),
   type: z
     .enum(['autonomous', 'manual'])
     .optional()
@@ -30,9 +45,37 @@ const RegisterAgentZodSchema = z.object({
     .optional()
     .describe('AI model identifier (default: agent-model-2024)'),
   capabilities: z
-    .array(z.nativeEnum(AIAgentCapability))
+    .union([
+      z.array(z.nativeEnum(AIAgentCapability)),
+      z.array(z.string()),
+      z.string(),
+    ])
     .optional()
-    .describe('Array of agent capabilities (default: [TEXT_GENERATION])'),
+    .transform((val) => {
+      if (!val) return undefined;
+      if (typeof val === 'string') {
+        return NaturalLanguageMapper.parseCapabilities(val);
+      }
+      if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string') {
+        return NaturalLanguageMapper.parseTagsOrCapabilities(val);
+      }
+      return val as AIAgentCapability[];
+    })
+    .describe('Agent capabilities - can be capability names (e.g. "ai", "data processing"), capability enum values, or array of either. Common values: "ai"/"text" (TEXT_GENERATION), "data" (DATA_INTEGRATION), "analytics" (TRANSACTION_ANALYTICS)'),
+  tags: z
+    .union([
+      z.array(z.string()),
+      z.string(),
+    ])
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      if (typeof val === 'string') {
+        return NaturalLanguageMapper.parseCapabilities(val);
+      }
+      return NaturalLanguageMapper.parseTagsOrCapabilities(val);
+    })
+    .describe('Tags for the agent (alternative to capabilities) - e.g. "ai", "data", "analytics". Will be converted to appropriate capabilities.'),
   creator: z.string().optional().describe('Creator attribution for the agent'),
   socials: z
     .record(
@@ -125,8 +168,9 @@ export class RegisterAgentTool extends BaseHCS10TransactionTool<
 > {
   name = 'register_agent';
   description =
-    'Creates and registers the AI agent on the Hedera network. Returns JSON string with agent details (accountId, privateKey, topics) on success. Note: This tool requires multiple transactions and cannot be used in returnBytes mode.';
+    'Creates and registers the AI agent on the Hedera network. Returns JSON string with agent details (accountId, privateKey, topics) on success. Supports natural language for capabilities/tags like "ai", "data processing", "analytics". Note: This tool requires multiple transactions and cannot be used in returnBytes mode. If alias is set to "random" or contains "random", a unique alias will be generated.';
   specificInputSchema = RegisterAgentZodSchema;
+  private specificArgs: z.infer<typeof RegisterAgentZodSchema> | undefined;
 
   constructor(params: HCS10TransactionToolParams) {
     super(params);
@@ -139,7 +183,7 @@ export class RegisterAgentTool extends BaseHCS10TransactionTool<
     specificArgs: z.infer<typeof RegisterAgentZodSchema>
   ): Promise<void> {
     const hcs10Builder = builder as HCS10Builder;
-
+    this.specificArgs = specificArgs;
     const params: RegisterAgentParams = {
       name: specificArgs.name,
     };
@@ -149,6 +193,9 @@ export class RegisterAgentTool extends BaseHCS10TransactionTool<
     }
     if (specificArgs.alias !== undefined) {
       params.alias = specificArgs.alias;
+    } else {
+      const randomSuffix = Date.now().toString(36);
+      params.alias = `${specificArgs.name}${randomSuffix}`;
     }
     if (specificArgs.type !== undefined) {
       params.type = specificArgs.type;
@@ -156,8 +203,11 @@ export class RegisterAgentTool extends BaseHCS10TransactionTool<
     if (specificArgs.model !== undefined) {
       params.model = specificArgs.model;
     }
-    if (specificArgs.capabilities !== undefined) {
-      params.capabilities = specificArgs.capabilities;
+    // Handle both capabilities and tags (tags takes precedence if both provided)
+    if (specificArgs.tags !== undefined) {
+      params.capabilities = specificArgs.tags as AIAgentCapability[];
+    } else if (specificArgs.capabilities !== undefined) {
+      params.capabilities = specificArgs.capabilities as AIAgentCapability[];
     }
     if (specificArgs.creator !== undefined) {
       params.creator = specificArgs.creator;
@@ -210,37 +260,90 @@ export class RegisterAgentTool extends BaseHCS10TransactionTool<
     }
 
     await hcs10Builder.registerAgent(params);
+  }
 
-    // Handle setAsCurrent parameter (defaults to true)
-    const shouldSetAsCurrent = specificArgs.setAsCurrent !== false;
-    if (shouldSetAsCurrent) {
-      // Get the result from the builder using the execute method
-      const result = await hcs10Builder.execute();
-      if (result?.success && result.rawResult) {
-        const rawResult = result.rawResult as any;
-        
-        // Create RegisteredAgent object from the result
-        const registeredAgent: RegisteredAgent = {
-          name: specificArgs.name,
-          accountId: rawResult.accountId || rawResult.metadata?.accountId || rawResult.state?.agentMetadata?.accountId,
-          inboundTopicId: rawResult.inboundTopicId || rawResult.metadata?.inboundTopicId,
-          outboundTopicId: rawResult.outboundTopicId || rawResult.metadata?.outboundTopicId,
-          profileTopicId: rawResult.profileTopicId || rawResult.metadata?.profileTopicId,
-          privateKey: rawResult.privateKey || rawResult.metadata?.privateKey
-        };
+  /**
+   * Override _call to intercept the result and save agent to state if needed
+   */
+  protected override async _call(
+    args: z.infer<ReturnType<this['schema']>>,
+    runManager?: CallbackManagerForToolRun
+  ): Promise<string> {
+    const result = await super._call(args, runManager);
 
-        // Get state manager from builder and set as current agent
-        const stateManager = hcs10Builder.getStateManager();
-        if (stateManager) {
-          stateManager.setCurrentAgent(registeredAgent);
-          
-          // Persist if persistence options provided
-          if (specificArgs.persistence && stateManager.persistAgentData) {
-            await stateManager.persistAgentData(registeredAgent, {
+    const shouldSetAsCurrent = this.specificArgs?.setAsCurrent !== false;
+
+    if (this.specificArgs && shouldSetAsCurrent) {
+      try {
+        const parsed = JSON.parse(result);
+        if (parsed.rawResult) {
+          this._handleRegistrationResult(parsed.rawResult);
+        } else if (parsed.state || parsed.accountId || parsed.metadata) {
+          this._handleRegistrationResult(parsed);
+        }
+      } catch (e) {}
+    }
+
+    return result;
+  }
+
+  /**
+   * Extract agent data from registration result and save to state
+   */
+  private _handleRegistrationResult(rawResult: any): void {
+    let accountId = rawResult.accountId || rawResult.metadata?.accountId;
+
+    if (!accountId && rawResult.state?.createdResources) {
+      const accountResource = rawResult.state.createdResources.find(
+        (r: string) => r.startsWith('account:')
+      );
+      if (accountResource) {
+        accountId = accountResource.split(':')[1];
+      }
+    }
+
+    const inboundTopicId =
+      rawResult.inboundTopicId ||
+      rawResult.metadata?.inboundTopicId ||
+      rawResult.state?.inboundTopicId;
+
+    const outboundTopicId =
+      rawResult.outboundTopicId ||
+      rawResult.metadata?.outboundTopicId ||
+      rawResult.state?.outboundTopicId;
+
+    const profileTopicId =
+      rawResult.profileTopicId ||
+      rawResult.metadata?.profileTopicId ||
+      rawResult.state?.profileTopicId;
+
+    const privateKey = rawResult.privateKey || rawResult.metadata?.privateKey;
+
+    if (accountId && inboundTopicId && outboundTopicId && this.specificArgs) {
+      const registeredAgent: RegisteredAgent = {
+        name: this.specificArgs.name,
+        accountId,
+        inboundTopicId,
+        outboundTopicId,
+        profileTopicId,
+        privateKey,
+      };
+
+      const hcs10Builder = this.getServiceBuilder() as HCS10Builder;
+      const stateManager = hcs10Builder.getStateManager();
+      if (stateManager) {
+        stateManager.setCurrentAgent(registeredAgent);
+
+        if (stateManager.persistAgentData) {
+          const prefix =
+            this.specificArgs.persistence?.prefix ||
+            this.specificArgs.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+          stateManager
+            .persistAgentData(registeredAgent, {
               type: 'env-file',
-              prefix: specificArgs.persistence.prefix
-            });
-          }
+              prefix: prefix,
+            })
+            .catch(() => {});
         }
       }
     }
