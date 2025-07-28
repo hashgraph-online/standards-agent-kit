@@ -43,9 +43,7 @@ export abstract class BaseInscriberQueryTool<
   T extends z.ZodObject<
     z.ZodRawShape,
     z.UnknownKeysParam,
-    z.ZodTypeAny,
-    Record<string, unknown>,
-    Record<string, unknown>
+    z.ZodTypeAny
   > = z.ZodObject<z.ZodRawShape>
 > extends BaseHederaQueryTool<T> {
   protected inscriberBuilder: InscriberBuilder;
