@@ -8,7 +8,17 @@ describe('HbarPricePlugin', () => {
   beforeEach(() => {
     mockContext = {
       config: {
-        hederaKit: {},
+        hederaKit: {
+          query: jest.fn().mockReturnValue({
+            getHbarPrice: jest.fn().mockResolvedValue(0.05) // Mock HBAR price
+          }),
+          logger: {
+            info: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+          }
+        },
       },
       logger: {
         info: jest.fn(),
@@ -34,7 +44,7 @@ describe('HbarPricePlugin', () => {
 
     const tools = plugin.getTools();
     expect(tools).toHaveLength(1);
-    expect(tools[0].name).toBe('get_hbar_price');
+    expect(tools[0].name).toBe('hedera-get-hbar-price');
   });
 
   describe('HbarPricePlugin Tools - Integration Test', () => {
@@ -47,7 +57,7 @@ describe('HbarPricePlugin', () => {
         const tools = plugin.getTools();
         const hbarPriceTool = tools[0];
 
-        result = await hbarPriceTool.execute({});
+        result = await hbarPriceTool._call({});
       } catch (error) {
         errorOccurred = error;
       }
@@ -57,7 +67,9 @@ describe('HbarPricePlugin', () => {
 
       expect(errorOccurred).toBeNull();
       expect(typeof result).toBe('string');
-      expect(result).toContain('HBAR');
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.priceUsd).toBe(0.05);
     });
   });
 

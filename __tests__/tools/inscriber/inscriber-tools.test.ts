@@ -6,15 +6,29 @@ import {
   RetrieveInscriptionTool,
   InscriberBuilder,
 } from '../../../src';
+import { Logger } from '@hashgraphonline/standards-sdk';
 
 describe('Inscriber Tools', () => {
   let mockInscriberBuilder: jest.Mocked<InscriberBuilder>;
+  let mockLogger: Logger;
+  let mockHederaKit: any;
 
   beforeEach(() => {
+    mockLogger = new Logger({ module: 'Inscriber-Test' });
+    mockHederaKit = {
+      operatorId: '0.0.123456',
+      operatorPrivateKey: 'mock-key',
+      client: {
+        network: {
+          toString: () => 'testnet'
+        }
+      }
+    };
     mockInscriberBuilder = {
       inscribe: jest.fn(),
       inscribeWithSigner: jest.fn(),
       retrieveInscription: jest.fn(),
+      hederaKit: mockHederaKit,
     } as any;
 
     // Add network property
@@ -26,26 +40,32 @@ describe('Inscriber Tools', () => {
 
   describe('InscribeFromUrlTool', () => {
     it('should inscribe from URL successfully with confirmation', async () => {
-      const tool = new InscribeFromUrlTool({ inscriberBuilder: mockInscriberBuilder });
+      const tool = new InscribeFromUrlTool({ inscriberBuilder: mockInscriberBuilder, logger: mockLogger, hederaKit: mockHederaKit });
 
       mockInscriberBuilder.inscribe.mockResolvedValue({
         confirmed: true,
         result: {
           jobId: '0.0.1234@1234567890.123456789',
+          transactionId: '0.0.1234@1234567890.123456789',
+          topicId: '0.0.1234'
         },
         inscription: {
           inscriptionId: 'insc_123456',
+          topic_id: '0.0.1234'
         },
         sdk: {} as any,
       });
 
-      const result = await tool._execute({
+      const result = await tool._call({
         url: 'https://example.com/image.png',
         mode: 'file',
         waitForConfirmation: true,
       });
 
-      expect(result).toBe('Successfully inscribed content from URL https://example.com/image.png. Transaction ID: 0.0.1234@1234567890.123456789. Inscription ID: insc_123456');
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.data).toContain('Successfully inscribed');
+      expect(parsed.data).toContain('0.0.1234@1234567890.123456789');
       expect(mockInscriberBuilder.inscribe).toHaveBeenCalledWith(
         { type: 'url', url: 'https://example.com/image.png' },
         expect.objectContaining({
@@ -57,72 +77,85 @@ describe('Inscriber Tools', () => {
     });
 
     it('should inscribe from URL without confirmation', async () => {
-      const tool = new InscribeFromUrlTool({ inscriberBuilder: mockInscriberBuilder });
+      const tool = new InscribeFromUrlTool({ inscriberBuilder: mockInscriberBuilder, logger: mockLogger, hederaKit: mockHederaKit });
 
       mockInscriberBuilder.inscribe.mockResolvedValue({
         confirmed: false,
         result: {
           jobId: '0.0.1234@1234567890.123456789',
+          transactionId: '0.0.1234@1234567890.123456789'
         },
         sdk: {} as any,
       });
 
-      const result = await tool._execute({
+      const result = await tool._call({
         url: 'https://example.com/video.mp4',
         waitForConfirmation: false,
       });
 
-      expect(result).toBe('Inscription initiated from URL https://example.com/video.mp4. Transaction ID: 0.0.1234@1234567890.123456789. Use retrieveInscription to check status.');
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.data).toContain('inscription');
+      expect(parsed.data).toContain('0.0.1234@1234567890.123456789');
     });
   });
 
   describe('InscribeFromFileTool', () => {
     it('should inscribe from file successfully', async () => {
-      const tool = new InscribeFromFileTool({ inscriberBuilder: mockInscriberBuilder });
+      const tool = new InscribeFromFileTool({ inscriberBuilder: mockInscriberBuilder, logger: mockLogger, hederaKit: mockHederaKit });
 
       mockInscriberBuilder.inscribe.mockResolvedValue({
         confirmed: true,
         result: {
           jobId: '0.0.1234@1234567890.123456789',
+          transactionId: '0.0.1234@1234567890.123456789'
         },
         inscription: {
-          inscriptionId: 'insc_789012',
+          inscriptionId: 'insc_789012'
         },
         sdk: {} as any,
       });
 
-      const result = await tool._execute({
+      const result = await tool._call({
         filePath: '/path/to/document.pdf',
         mode: 'file',
         tags: ['document', 'pdf'],
       });
 
-      expect(result).toBe('Successfully inscribed content from file /path/to/document.pdf. Transaction ID: 0.0.1234@1234567890.123456789. Inscription ID: insc_789012');
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error).toContain('no such file');
     });
   });
 
   describe('InscribeFromBufferTool', () => {
     it('should inscribe from buffer successfully', async () => {
-      const tool = new InscribeFromBufferTool({ inscriberBuilder: mockInscriberBuilder });
+      const tool = new InscribeFromBufferTool({ inscriberBuilder: mockInscriberBuilder, logger: mockLogger, hederaKit: mockHederaKit });
 
       mockInscriberBuilder.inscribe.mockResolvedValue({
         confirmed: true,
         result: {
           jobId: '0.0.1234@1234567890.123456789',
+          transactionId: '0.0.1234@1234567890.123456789',
+          topicId: '0.0.1234'
         },
         inscription: {
           inscriptionId: 'insc_345678',
+          topic_id: '0.0.1234'
         },
         sdk: {} as any,
       });
 
-      const result = await tool._execute({
+      const result = await tool._call({
         base64Data: 'SGVsbG8gV29ybGQ=',
         fileName: 'hello.txt',
         mimeType: 'text/plain',
       });
 
-      expect(result).toBe('Successfully inscribed content hello.txt. Transaction ID: 0.0.1234@1234567890.123456789. Inscription ID: insc_345678');
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.data).toContain('Successfully inscribed');
+      expect(parsed.data).toContain('0.0.1234@1234567890.123456789');
       expect(mockInscriberBuilder.inscribe).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'buffer',
@@ -136,20 +169,23 @@ describe('Inscriber Tools', () => {
 
   describe('InscribeHashinalTool', () => {
     it('should inscribe Hashinal NFT successfully', async () => {
-      const tool = new InscribeHashinalTool({ inscriberBuilder: mockInscriberBuilder });
+      const tool = new InscribeHashinalTool({ inscriberBuilder: mockInscriberBuilder, logger: mockLogger, hederaKit: mockHederaKit });
 
       mockInscriberBuilder.inscribe.mockResolvedValue({
         confirmed: true,
         result: {
           jobId: '0.0.1234@1234567890.123456789',
+          transactionId: '0.0.1234@1234567890.123456789',
+          topicId: '0.0.1234'
         },
         inscription: {
           inscriptionId: 'insc_nft_123',
+          topic_id: '0.0.1234'
         },
         sdk: {} as any,
       });
 
-      const result = await tool._execute({
+      const result = await tool._call({
         url: 'https://example.com/nft-image.jpg',
         name: 'My Cool NFT',
         creator: '0.0.1234',
@@ -161,7 +197,11 @@ describe('Inscriber Tools', () => {
         ],
       });
 
-      expect(result).toBe('Successfully inscribed Hashinal NFT "My Cool NFT". Transaction ID: 0.0.1234@1234567890.123456789. Inscription ID: insc_nft_123');
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.data).toContain('Successfully inscribed');
+      expect(parsed.data).toContain('Hashinal NFT');
+      expect(parsed.data).toContain('0.0.1234@1234567890.123456789');
       expect(mockInscriberBuilder.inscribe).toHaveBeenCalledWith(
         { type: 'url', url: 'https://example.com/nft-image.jpg' },
         expect.objectContaining({
@@ -179,7 +219,7 @@ describe('Inscriber Tools', () => {
 
   describe('RetrieveInscriptionTool', () => {
     it('should retrieve inscription successfully', async () => {
-      const tool = new RetrieveInscriptionTool({ inscriberBuilder: mockInscriberBuilder });
+      const tool = new RetrieveInscriptionTool({ inscriberBuilder: mockInscriberBuilder, logger: mockLogger, hederaKit: mockHederaKit });
 
       const mockInscription = {
         inscriptionId: 'insc_123456',
@@ -200,26 +240,30 @@ describe('Inscriber Tools', () => {
 
       mockInscriberBuilder.retrieveInscription.mockResolvedValue(mockInscription);
 
-      const result = await tool._execute({
+      const result = await tool._call({
         transactionId: '0.0.1234@1234567890.123456789',
       });
 
       const parsed = JSON.parse(result);
-      expect(parsed.inscriptionId).toBe('insc_123456');
-      expect(parsed.status).toBe('completed');
-      expect(parsed.fileUrl).toBe('https://storage.example.com/file.png');
+      expect(parsed.success).toBe(true);
+      expect(parsed.data.inscriptionId).toBe('insc_123456');
+      expect(parsed.data.status).toBe('completed');
+      expect(parsed.data.fileUrl).toBe('https://storage.example.com/file.png');
     });
 
     it('should handle retrieval errors', async () => {
-      const tool = new RetrieveInscriptionTool({ inscriberBuilder: mockInscriberBuilder });
+      const tool = new RetrieveInscriptionTool({ inscriberBuilder: mockInscriberBuilder, logger: mockLogger, hederaKit: mockHederaKit });
 
       mockInscriberBuilder.retrieveInscription.mockRejectedValue(
         new Error('Inscription not found')
       );
 
-      await expect(tool._execute({
+      const result = await tool._call({
         transactionId: '0.0.9999@1234567890.123456789',
-      })).rejects.toThrow('Failed to retrieve inscription: Error: Inscription not found');
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error).toContain('Inscription not found');
     });
   });
 });

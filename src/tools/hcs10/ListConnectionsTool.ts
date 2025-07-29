@@ -24,7 +24,7 @@ export class ListConnectionsTool extends BaseHCS10QueryTool<
 > {
   name = 'list_connections';
   description =
-    'Lists the currently active HCS-10 connections with detailed information. Shows connection status, agent details, and recent activity. Use this to get a comprehensive view of all active connections.';
+    'Lists all active HCS-10 connections. Use this FIRST before sending messages to check if you already have an active connection to a target agent. Shows connection details and agent information for each active connection.';
   specificInputSchema = ListConnectionsZodSchema;
   constructor(params: HCS10QueryToolParams) {
     super(params);

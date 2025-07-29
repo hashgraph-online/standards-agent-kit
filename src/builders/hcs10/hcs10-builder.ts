@@ -1014,38 +1014,72 @@ export class HCS10Builder extends BaseServiceBuilder {
 
       let connection: ActiveConnection | undefined;
 
-      if (params.targetIdentifier.includes('@')) {
-        const parts = params.targetIdentifier.split('@');
+      const identifier = params.targetIdentifier;
+
+      if (identifier.includes('@')) {
+        const parts = identifier.split('@');
         if (parts.length === 2) {
           const accountId = parts[1];
           connection = this.stateManager.getConnectionByIdentifier(accountId);
 
           if (!connection) {
             this.addNote(
-              `Could not find connection using request key '${params.targetIdentifier}', extracted account ID '${accountId}'.`
+              `Could not find connection using request key '${identifier}', extracted account ID '${accountId}'.`
             );
           }
         }
       }
 
       if (!connection) {
-        connection = this.stateManager.getConnectionByIdentifier(
-          params.targetIdentifier
-        );
+        connection = this.stateManager.getConnectionByIdentifier(identifier);
+      }
+
+      if (
+        !connection &&
+        !identifier.startsWith('0.0.') &&
+        /^\d+$/.test(identifier)
+      ) {
+        const accountIdWithPrefix = `0.0.${identifier}`;
+        connection =
+          this.stateManager.getConnectionByIdentifier(accountIdWithPrefix);
+        if (connection) {
+          this.addNote(
+            `Found connection using account ID with prefix: ${accountIdWithPrefix}`
+          );
+        }
+      }
+
+      if (!connection && /^[1-9]\d*$/.test(identifier)) {
+        const connections = this.stateManager.listConnections();
+        const index = parseInt(identifier) - 1;
+        if (index >= 0 && index < connections.length) {
+          connection = connections[index];
+          if (connection) {
+            this.addNote(
+              `Found connection by index ${identifier}: ${connection.targetAccountId}`
+            );
+          }
+        }
       }
 
       if (!connection) {
         const connections = this.stateManager.listConnections();
         const availableIds = connections.map(
-          (c) => `${c.targetAccountId} (${c.connectionTopicId})`
+          (c, i) =>
+            `${i + 1}. ${c.targetAccountId} (Topic: ${c.connectionTopicId})`
         );
-        throw new Error(
-          `Connection not found for identifier: ${
-            params.targetIdentifier
-          }. Available connections: ${
-            availableIds.join(', ') || 'none'
-          }. Use 'list_connections' to see details.`
-        );
+
+        let errorMsg = `Connection not found for identifier: "${identifier}"\n`;
+        errorMsg += `Available connections:\n${
+          availableIds.join('\n') || 'No active connections'
+        }`;
+        errorMsg += `\n\nYou can use:\n`;
+        errorMsg += `- Connection number (e.g., "1", "2")\n`;
+        errorMsg += `- Account ID (e.g., "0.0.6412936")\n`;
+        errorMsg += `- Connection topic ID\n`;
+        errorMsg += `Use 'list_connections' to see all active connections.`;
+
+        throw new Error(errorMsg);
       }
 
       let connectionTopicId = connection.connectionTopicId;

@@ -1,15 +1,22 @@
-import * as dotenv from 'dotenv';
 import readline from 'readline';
-import { HederaConversationalAgent, ServerSigner } from 'hedera-agent-kit';
-import { OpenConvAIPlugin } from '@hashgraphonline/standards-agent-plugin';
+import dotenv from 'dotenv';
+import { ConversationalAgent } from '@hashgraphonline/conversational-agent';
 import WeatherPlugin from '../src/plugins/weather';
 import DeFiPlugin from '../src/plugins/defi';
 import { HbarPricePlugin } from '../src/plugins/hedera/HbarPricePlugin';
-import { Logger, HCS10Client } from '@hashgraphonline/standards-sdk';
 import { OpenConvaiState } from '../src/state/open-convai-state';
 import type { NetworkType } from '@hashgraphonline/standards-sdk';
 
 dotenv.config();
+
+export const getSystemMessage = (
+  accountId: string
+): string => `You are a helpful assistant managing Hashgraph Online HCS-10 connections, messages, HCS-2 registries, and content inscription.
+
+You are currently operating as agent: ${accountId}
+When users ask about "my profile", "my account", "my connections", etc., use this account ID: ${accountId}
+
+Use the available tools based on their descriptions. Each tool clearly explains when and how to use it.`;
 
 interface AgentIdentity {
   name: string;
@@ -21,7 +28,7 @@ interface AgentIdentity {
 }
 
 // --- Global Variables ---
-let agent: HederaConversationalAgent;
+let agent: ConversationalAgent;
 let stateManager: OpenConvaiState;
 
 /**
@@ -106,7 +113,6 @@ async function initialize() {
     const operatorKey = process.env.HEDERA_OPERATOR_KEY!;
     const network = process.env.HEDERA_NETWORK || 'testnet';
     const openaiApiKey = process.env.OPENAI_API_KEY!;
-    const registryUrl = process.env.REGISTRY_URL;
 
     if (!operatorId || !operatorKey) {
       throw new Error(
@@ -179,73 +185,26 @@ async function initialize() {
       }
     }
 
-    // --- Initialize HederaConversationalAgent ---
-    const serverSigner = new ServerSigner(
-      selectedAccountId,
-      selectedPrivateKey,
-      networkType
-    );
-
-    agent = new HederaConversationalAgent(serverSigner, {
-      pluginConfig: {
-        plugins: [
-          new OpenConvAIPlugin(),
-          new WeatherPlugin(),
-          new DeFiPlugin(),
-          new HbarPricePlugin(),
-        ],
-        appConfig: {
-          stateManager,
-          registryUrl,
-          weatherApiKey: process.env.WEATHER_API_KEY,
-          logger: new Logger({ module: 'PluginSystem' }),
-        },
-      },
+    // --- Initialize ConversationalAgent ---
+    agent = new ConversationalAgent({
+      accountId: selectedAccountId,
+      privateKey: selectedPrivateKey,
+      network: networkType,
       openAIApiKey: openaiApiKey,
       openAIModelName: 'gpt-4o',
       verbose: false,
-      customSystemMessagePreamble: `You are a helpful assistant managing Hedera HCS-10 connections and messages.
-// You have access to tools for registering agents, finding registered agents, initiating connections, listing active connections, sending messages over connections, and checking for new messages.
-
-// *** IMPORTANT CONTEXT ***
-// You are currently operating as agent: ${selectedAccountId}
-// When users ask about "my profile", "my account", "my connections", etc., use this account ID: ${selectedAccountId}
-
-// You also have access to a plugin system that provides additional tools for various functionalities:
-// - Weather tools: Get current weather and weather forecasts for locations
-// - DeFi tools: Get token prices, check token balances, and simulate token swaps
-// - Hedera tools: Get the current HBAR price
-
-// *** IMPORTANT TOOL SELECTION RULES ***
-// - To REGISTER a new agent, use 'register_agent'.
-// - To FIND existing registered agents in the registry, use 'find_registrations'. You can filter by accountId or tags.
-// - To START a NEW connection TO a specific target agent (using their account ID), ALWAYS use the 'initiate_connection' tool.
-// - To LISTEN for INCOMING connection requests FROM other agents, use the 'monitor_connections' tool (it takes NO arguments).
-// - To SEND a message to a specific agent, use 'send_message_to_connection' tool.
-// - To ACCEPT incoming connection requests, use the 'accept_connection_request' tool.
-// - To MANAGE and VIEW pending connection requests, use the 'manage_connection_requests' tool.
-// - To CHECK FOR *NEW* messages since the last check, use the 'check_messages' tool.
-// - To GET THE *LATEST* MESSAGE(S) in a conversation, even if you might have seen them before, use the 'check_messages' tool and set the parameter 'fetchLatest: true'. You can optionally specify 'lastMessagesCount' to get more than one latest message (default is 1).
-// - To RETRIEVE a profile, use the 'retrieve_profile' tool. When users ask for "my profile", use the current account ID: ${selectedAccountId}
-// - For WEATHER information, use the appropriate weather plugin tools.
-// - For DeFi operations, use the appropriate DeFi plugin tools.
-// - For the CURRENT HBAR PRICE, use the 'getHbarPrice' tool.
-// - Do NOT confuse these tools.
-
-Remember the connection numbers when listing connections, as users might refer to them.`,
+      operationalMode: 'autonomous',
+      stateManager,
+      additionalPlugins: [
+        new WeatherPlugin(),
+        new DeFiPlugin(),
+        new HbarPricePlugin(),
+      ],
+      customSystemMessagePreamble: getSystemMessage(selectedAccountId),
     });
 
     console.log('Initializing agent...');
     await agent.initialize();
-
-    // Initialize ConnectionsManager with HCS10Client
-    const hcs10Client = new HCS10Client({
-      network: networkType,
-      operatorId: selectedAccountId,
-      operatorPrivateKey: selectedPrivateKey,
-      logLevel: 'error',
-    });
-    stateManager.initializeConnectionsManager(hcs10Client);
 
     if (!process.env.WEATHER_API_KEY) {
       console.log(

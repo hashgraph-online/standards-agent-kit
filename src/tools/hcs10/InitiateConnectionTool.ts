@@ -35,7 +35,7 @@ export class InitiateConnectionTool extends BaseHCS10TransactionTool<
 > {
   name = 'initiate_connection';
   description =
-    'Actively STARTS a NEW HCS-10 connection TO a specific target agent identified by their account ID. Requires the targetAccountId parameter. Use this ONLY to INITIATE an OUTGOING connection request.';
+    'ONLY use this to START a BRAND NEW connection to an agent you have NEVER connected to before. If you already have an active connection to this agent, use send_message_to_connection instead. This creates a new connection request and waits for acceptance.';
   specificInputSchema = InitiateConnectionZodSchema;
   constructor(params: HCS10TransactionToolParams) {
     super(params);
