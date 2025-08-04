@@ -53,7 +53,7 @@ const inscribeFromBufferSchema = z.object({
  */
 export class InscribeFromBufferTool extends BaseInscriberQueryTool<typeof inscribeFromBufferSchema> {
   name = 'inscribeFromBuffer';
-  description = 'Inscribe content from a buffer/base64 data to the Hedera network. IMPORTANT: Only use this tool when you have actual content to inscribe. The base64Data must contain valid, non-empty content (minimum 10 bytes). Useful for inscribing content that has been read into memory, including files accessed through MCP filesystem tools. Always verify the content exists and is meaningful before attempting inscription.';
+  description = 'Inscribe content that you already have (text, data, or files) to the Hedera network. Use this tool when you have content from: Wikipedia articles, MCP tool responses, text data, API responses, or any content you\'ve retrieved. Convert your content to base64 first. DO NOT use inscribeFromUrl for web page content - use this tool instead after retrieving the actual content.';
 
   get specificInputSchema() {
     return inscribeFromBufferSchema;

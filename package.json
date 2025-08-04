@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-agent-kit",
-  "version": "0.2.110",
+  "version": "0.2.112",
   "description": "A modular SDK for building on-chain autonomous agents using Hashgraph Online Standards, including HCS-10 for agent discovery and communication.",
   "type": "module",
   "main": "./dist/cjs/standards-agent-kit.cjs",
@@ -89,7 +89,7 @@
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.69.0",
-    "@hashgraphonline/standards-sdk": "0.0.165",
+    "@hashgraphonline/standards-sdk": "0.0.167",
     "@langchain/community": "^0.3.49",
     "@langchain/core": "^0.3.66",
     "@langchain/openai": "^0.6.3",

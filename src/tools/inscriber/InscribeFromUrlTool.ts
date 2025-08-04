@@ -42,7 +42,7 @@ const inscribeFromUrlSchema = z.object({
  */
 export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeFromUrlSchema> {
   name = 'inscribeFromUrl';
-  description = 'Inscribe content from a URL to the Hedera network. IMPORTANT: Only use this tool when you have a valid URL pointing to actual content. The URL must be accessible and return meaningful data. The tool will validate that the content exists and is not empty before inscription.';
+  description = 'Inscribe content directly from a URL that points to a downloadable file (PDF, image, JSON, etc). DO NOT use this for web pages like Wikipedia, Twitter, or GitHub pages. This tool is ONLY for direct file URLs like https://example.com/document.pdf or https://api.example.com/data.json. For content you already have (from Wikipedia, MCP tools, or text), use inscribeFromBuffer instead.';
 
   get specificInputSchema() {
     return inscribeFromUrlSchema;
