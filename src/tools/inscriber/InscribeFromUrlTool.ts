@@ -42,7 +42,7 @@ const inscribeFromUrlSchema = z.object({
  */
 export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeFromUrlSchema> {
   name = 'inscribeFromUrl';
-  description = 'Inscribe content from a URL to the Hedera network';
+  description = 'Inscribe content from a URL to the Hedera network. IMPORTANT: Only use this tool when you have a valid URL pointing to actual content. The URL must be accessible and return meaningful data. The tool will validate that the content exists and is not empty before inscription.';
 
   get specificInputSchema() {
     return inscribeFromUrlSchema;
@@ -52,6 +52,68 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
     params: z.infer<typeof inscribeFromUrlSchema>,
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
+    console.log(`[DEBUG] InscribeFromUrlTool.executeQuery called with URL: ${params.url}`);
+    
+    if (!params.url || params.url.trim() === '') {
+      throw new Error('URL cannot be empty. Please provide a valid URL.');
+    }
+
+    try {
+      const urlObj = new URL(params.url);
+      if (!urlObj.protocol || !urlObj.host) {
+        throw new Error('Invalid URL format. Please provide a complete URL with protocol (http/https).');
+      }
+      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+        throw new Error('Only HTTP and HTTPS URLs are supported for inscription.');
+      }
+    } catch (error) {
+      throw new Error(`Invalid URL: ${params.url}. Please provide a valid URL.`);
+    }
+
+    console.log(`[InscribeFromUrlTool] Validating URL content before inscription...`);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      try {
+        const response = await fetch(params.url, {
+          method: 'HEAD',
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`URL returned error status ${response.status}: ${response.statusText}. Cannot inscribe content from inaccessible URLs.`);
+        }
+
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength) === 0) {
+          throw new Error('URL returns empty content (Content-Length: 0). Cannot inscribe empty content.');
+        }
+
+        if (contentLength && parseInt(contentLength) < 10) {
+          throw new Error(`URL content is too small (${contentLength} bytes). Content must be at least 10 bytes.`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        console.log(`[InscribeFromUrlTool] URL validation passed. Content-Type: ${contentType}, Content-Length: ${contentLength || 'unknown'}`);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        throw fetchError;
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.log(`[InscribeFromUrlTool] Warning: URL validation timed out after 10 seconds. Proceeding with inscription attempt.`);
+        } else if (error.message.includes('URL returned error') || error.message.includes('empty content') || error.message.includes('too small')) {
+          throw error;
+        } else {
+          console.log(`[InscribeFromUrlTool] Warning: Could not validate URL with HEAD request: ${error.message}. Proceeding with inscription attempt.`);
+        }
+      }
+    }
+
     const options: InscriptionOptions = {
       mode: params.mode,
       metadata: params.metadata,

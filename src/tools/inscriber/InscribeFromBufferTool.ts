@@ -7,8 +7,8 @@ import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
  * Schema for inscribing from buffer
  */
 const inscribeFromBufferSchema = z.object({
-  base64Data: z.string().describe('Base64 encoded content to inscribe'),
-  fileName: z.string().describe('Name for the inscribed content'),
+  base64Data: z.string().min(1, 'Base64 data cannot be empty').describe('Base64 encoded content to inscribe. Must contain valid, non-empty content (minimum 10 bytes after decoding).'),
+  fileName: z.string().min(1, 'File name cannot be empty').describe('Name for the inscribed content. Required for all inscriptions.'),
   mimeType: z
     .string()
     .optional()
@@ -53,7 +53,7 @@ const inscribeFromBufferSchema = z.object({
  */
 export class InscribeFromBufferTool extends BaseInscriberQueryTool<typeof inscribeFromBufferSchema> {
   name = 'inscribeFromBuffer';
-  description = 'Inscribe content from a buffer/base64 data to the Hedera network. Useful for inscribing content that has been read into memory, including files accessed through MCP filesystem tools.';
+  description = 'Inscribe content from a buffer/base64 data to the Hedera network. IMPORTANT: Only use this tool when you have actual content to inscribe. The base64Data must contain valid, non-empty content (minimum 10 bytes). Useful for inscribing content that has been read into memory, including files accessed through MCP filesystem tools. Always verify the content exists and is meaningful before attempting inscription.';
 
   get specificInputSchema() {
     return inscribeFromBufferSchema;
@@ -70,15 +70,44 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<typeof inscri
     
     if (!params.base64Data || params.base64Data.trim() === '') {
       console.log(`[InscribeFromBufferTool] ERROR: No data provided`);
-      throw new Error('No data provided. Cannot inscribe empty content.');
+      throw new Error('No data provided. Cannot inscribe empty content. Please provide valid base64 encoded data.');
     }
 
-    const buffer = Buffer.from(params.base64Data, 'base64');
+    if (!params.fileName || params.fileName.trim() === '') {
+      console.log(`[InscribeFromBufferTool] ERROR: No fileName provided`);
+      throw new Error('No fileName provided. A valid fileName is required for inscription.');
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(params.base64Data, 'base64');
+    } catch (error) {
+      console.log(`[InscribeFromBufferTool] ERROR: Invalid base64 data`);
+      throw new Error('Invalid base64 data provided. Please ensure the data is properly base64 encoded.');
+    }
+    
     console.log(`[InscribeFromBufferTool] Buffer length after conversion: ${buffer.length}`);
     
     if (buffer.length === 0) {
       console.log(`[InscribeFromBufferTool] ERROR: Buffer is empty after conversion`);
-      throw new Error('Buffer is empty. Cannot inscribe empty content.');
+      throw new Error('Buffer is empty after base64 conversion. The provided data appears to be invalid or empty.');
+    }
+
+    if (buffer.length < 10) {
+      console.log(`[InscribeFromBufferTool] WARNING: Buffer is very small (${buffer.length} bytes)`);
+      console.log(`[InscribeFromBufferTool] Buffer content preview: ${buffer.toString('utf8', 0, Math.min(buffer.length, 50))}`);
+      throw new Error(`Buffer content is too small (${buffer.length} bytes). This may indicate empty or invalid content. Please verify the source data contains actual content.`);
+    }
+
+    const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(params.base64Data);
+    if (!isValidBase64) {
+      console.log(`[InscribeFromBufferTool] ERROR: Invalid base64 format`);
+      throw new Error('Invalid base64 format. The data does not appear to be properly base64 encoded.');
+    }
+
+    if (buffer.toString('utf8', 0, Math.min(buffer.length, 100)).trim() === '') {
+      console.log(`[InscribeFromBufferTool] ERROR: Buffer contains only whitespace or empty content`);
+      throw new Error('Buffer contains only whitespace or empty content. Cannot inscribe meaningless data.');
     }
 
     const options: InscriptionOptions = {

@@ -9,7 +9,7 @@ import * as path from 'path';
  * Schema for inscribing from file
  */
 const inscribeFromFileSchema = z.object({
-  filePath: z.string().describe('The file path of the content to inscribe'),
+  filePath: z.string().min(1, 'File path cannot be empty').describe('The file path of the content to inscribe. Must point to a valid, non-empty file.'),
   mode: z
     .enum(['file', 'hashinal'])
     .optional()
@@ -49,7 +49,7 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
 > {
   name = 'inscribeFromFile';
   description =
-    'Inscribe content from a local file to the Hedera network using a file path. For files accessed through MCP filesystem tools, consider reading the file content first and using inscribeFromBuffer instead.';
+    'Inscribe content from a local file to the Hedera network using a file path. IMPORTANT: Only use this tool when you have a valid file path to actual content. The file must exist and contain meaningful data (minimum 10 bytes). For files accessed through MCP filesystem tools, consider reading the file content first and using inscribeFromBuffer instead.';
 
   get specificInputSchema(): typeof inscribeFromFileSchema {
     return inscribeFromFileSchema;
@@ -76,8 +76,18 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
 
       if (stats.size === 0) {
         throw new Error(
-          `File "${params.filePath}" is empty. Cannot inscribe empty files.`
+          `File "${params.filePath}" is empty (0 bytes). Cannot inscribe empty files.`
         );
+      }
+
+      if (stats.size < 10) {
+        throw new Error(
+          `File "${params.filePath}" is too small (${stats.size} bytes). Files must contain at least 10 bytes of meaningful content.`
+        );
+      }
+
+      if (stats.size > 100 * 1024 * 1024) {
+        console.log(`[InscribeFromFileTool] WARNING: Large file detected (${(stats.size / (1024 * 1024)).toFixed(2)} MB)`);
       }
 
       this.logger?.info('Reading file content...');
@@ -86,8 +96,25 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
 
       if (!fileContent || fileContent.length === 0) {
         throw new Error(
-          `File "${params.filePath}" has no content. Cannot inscribe empty files.`
+          `File "${params.filePath}" has no content after reading. Cannot inscribe empty files.`
         );
+      }
+
+      if (fileContent.length < 10) {
+        throw new Error(
+          `File "${params.filePath}" content is too small (${fileContent.length} bytes). Files must contain at least 10 bytes of meaningful content.`
+        );
+      }
+
+      const fileName = path.basename(params.filePath);
+      const mimeType = this.getMimeType(fileName);
+      if (mimeType.startsWith('text/') || mimeType === 'application/json') {
+        const textContent = fileContent.toString('utf8', 0, Math.min(fileContent.length, 1000));
+        if (textContent.trim() === '') {
+          throw new Error(
+            `File "${params.filePath}" contains only whitespace or empty content. Cannot inscribe meaningless data.`
+          );
+        }
       }
     } catch (error) {
       if (error instanceof Error) {
