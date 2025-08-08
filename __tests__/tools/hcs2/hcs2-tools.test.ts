@@ -155,7 +155,7 @@ describe('HCS-2 Tools', () => {
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
       expect(parsed.data.topicId).toBe('0.0.123456');
-      expect(parsed.data.registryType).toBe('non-indexed');
+      expect(parsed.data.registryType).toBe('indexed');
       expect(parsed.data.totalEntries).toBe(1);
       expect(parsed.data.entries[0].targetTopicId).toBe('0.0.789012');
     });

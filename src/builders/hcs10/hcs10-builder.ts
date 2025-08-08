@@ -137,8 +137,8 @@ export class HCS10Builder extends BaseServiceBuilder {
   private standardClient: HCS10Client;
   private stateManager: IStateManager | undefined;
   private executeResult?: ExecuteResult & { rawResult?: unknown };
-  private useEncryption: boolean;
-  private guardedRegistryBaseUrl: string;
+  private useEncryption: boolean = false;
+  private guardedRegistryBaseUrl: string = '';
   private network: StandardNetworkType;
   private sdkLogger: SDKLogger;
 
@@ -175,7 +175,6 @@ export class HCS10Builder extends BaseServiceBuilder {
       network: this.network,
       operatorId: operatorId,
       operatorPrivateKey: operatorPrivateKey,
-      guardedRegistryBaseUrl: this.guardedRegistryBaseUrl,
       logLevel: options?.logLevel || 'info',
     });
 

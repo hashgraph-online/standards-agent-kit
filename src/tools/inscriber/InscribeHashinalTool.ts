@@ -44,6 +44,12 @@ const inscribeHashinalSchema = z.object({
     .boolean()
     .optional()
     .describe('Whether to wait for inscription confirmation'),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Timeout in milliseconds for inscription (default: no timeout - waits until completion)'),
   apiKey: z
     .string()
     .optional()
@@ -89,17 +95,29 @@ export class InscribeHashinalTool extends BaseInscriberQueryTool<typeof inscribe
     };
 
     try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Inscription timed out after 30 seconds')), 30000);
-      });
+      let result: Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>;
+      
+      if (params.timeoutMs) {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new Error(`Inscription timed out after ${params.timeoutMs}ms`)),
+            params.timeoutMs
+          );
+        });
 
-      const result = await Promise.race([
-        this.inscriberBuilder.inscribe(
+        result = await Promise.race([
+          this.inscriberBuilder.inscribe(
+            { type: 'url', url: params.url },
+            options
+          ),
+          timeoutPromise
+        ]);
+      } else {
+        result = await this.inscriberBuilder.inscribe(
           { type: 'url', url: params.url },
           options
-        ),
-        timeoutPromise
-      ]) as any;
+        );
+      }
 
       if (result.confirmed) {
         const topicId = result.inscription?.topic_id || result.result.topicId;

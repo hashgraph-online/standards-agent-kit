@@ -7,7 +7,7 @@ import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
  * Schema for inscribing from URL
  */
 const inscribeFromUrlSchema = z.object({
-  url: z.string().url().describe('The URL of the content to inscribe'),
+  url: z.string().url().describe('ONLY direct file download URLs with file extensions (.pdf, .jpg, .png, .json, .zip). NEVER use for web pages, articles, or when you already have content to inscribe.'),
   mode: z
     .enum(['file', 'hashinal'])
     .optional()
@@ -30,6 +30,12 @@ const inscribeFromUrlSchema = z.object({
     .boolean()
     .optional()
     .describe('Whether to wait for inscription confirmation'),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Timeout in milliseconds for inscription (default: no timeout - waits until completion)'),
   apiKey: z
     .string()
     .optional()
@@ -42,7 +48,7 @@ const inscribeFromUrlSchema = z.object({
  */
 export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeFromUrlSchema> {
   name = 'inscribeFromUrl';
-  description = 'Inscribe content directly from a URL that points to a downloadable file (PDF, image, JSON, etc). DO NOT use this for web pages like Wikipedia, Twitter, or GitHub pages. This tool is ONLY for direct file URLs like https://example.com/document.pdf or https://api.example.com/data.json. For content you already have (from Wikipedia, MCP tools, or text), use inscribeFromBuffer instead.';
+  description = 'ONLY for direct FILE DOWNLOAD URLs ending with file extensions (.pdf, .jpg, .png, .json, .zip). NEVER use for web pages, articles, or ANY HTML content - it WILL FAIL. If you have already retrieved content from any source (including MCP tools), you MUST use inscribeFromBuffer instead. This tool downloads files from URLs - it does NOT inscribe content you already have. When asked to "inscribe it" after retrieving content, ALWAYS use inscribeFromBuffer with the actual content.';
 
   get specificInputSchema() {
     return inscribeFromUrlSchema;
@@ -66,7 +72,11 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
       if (!['http:', 'https:'].includes(urlObj.protocol)) {
         throw new Error('Only HTTP and HTTPS URLs are supported for inscription.');
       }
+      
     } catch (error) {
+      if (error instanceof Error && error.message.includes('Cannot inscribe content from')) {
+        throw error;
+      }
       throw new Error(`Invalid URL: ${params.url}. Please provide a valid URL.`);
     }
 
@@ -76,18 +86,32 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       try {
-        const response = await fetch(params.url, {
+        // First try HEAD request
+        const headResponse = await fetch(params.url, {
           method: 'HEAD',
           signal: controller.signal,
         });
         
         clearTimeout(timeoutId);
         
-        if (!response.ok) {
-          throw new Error(`URL returned error status ${response.status}: ${response.statusText}. Cannot inscribe content from inaccessible URLs.`);
+        if (!headResponse.ok) {
+          throw new Error(`URL returned error status ${headResponse.status}: ${headResponse.statusText}. Cannot inscribe content from inaccessible URLs.`);
         }
 
-        const contentLength = response.headers.get('content-length');
+        const contentType = headResponse.headers.get('content-type') || '';
+        const contentLength = headResponse.headers.get('content-length');
+        
+        // Check if content type indicates HTML/web page
+        const webPageContentTypes = [
+          'text/html',
+          'application/xhtml+xml',
+          'text/xml'
+        ];
+        
+        if (webPageContentTypes.some(type => contentType.toLowerCase().includes(type))) {
+          throw new Error(`URL returns HTML/web page content (Content-Type: ${contentType}). This tool only works with direct file URLs (PDFs, images, JSON, etc.). For web page content, first retrieve the content using the appropriate MCP tool or web scraper, then use inscribeFromBuffer to inscribe it.`);
+        }
+        
         if (contentLength && parseInt(contentLength) === 0) {
           throw new Error('URL returns empty content (Content-Length: 0). Cannot inscribe empty content.');
         }
@@ -95,8 +119,47 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
         if (contentLength && parseInt(contentLength) < 10) {
           throw new Error(`URL content is too small (${contentLength} bytes). Content must be at least 10 bytes.`);
         }
+        
+        // If HEAD doesn't provide content-type, do a partial GET to check
+        if (!contentType || contentType === 'application/octet-stream') {
+          console.log(`[InscribeFromUrlTool] Content-Type unclear, fetching first 1KB to verify...`);
+          
+          const getController = new AbortController();
+          const getTimeoutId = setTimeout(() => getController.abort(), 5000);
+          
+          try {
+            const getResponse = await fetch(params.url, {
+              signal: getController.signal,
+              headers: {
+                'Range': 'bytes=0-1023' // Get first 1KB
+              }
+            });
+            
+            clearTimeout(getTimeoutId);
+            
+            if (getResponse.ok || getResponse.status === 206) { // 206 is partial content
+              const buffer = await getResponse.arrayBuffer();
+              const bytes = new Uint8Array(buffer);
+              const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes.slice(0, 512));
+              
+              // Check if it looks like HTML
+              if (text.toLowerCase().includes('<!doctype html') || 
+                  text.toLowerCase().includes('<html') ||
+                  text.match(/<meta\s+[^>]*>/i) ||
+                  text.match(/<title>/i)) {
+                throw new Error(`URL returns HTML content. This tool only works with direct file URLs. For web page content, first retrieve it using the appropriate tool, then use inscribeFromBuffer.`);
+              }
+            }
+          } catch (getError) {
+            clearTimeout(getTimeoutId);
+            if (getError instanceof Error && getError.message.includes('HTML content')) {
+              throw getError;
+            }
+            // If partial GET fails, continue anyway
+            console.log(`[InscribeFromUrlTool] Could not perform partial GET validation: ${getError instanceof Error ? getError.message : 'Unknown error'}`);
+          }
+        }
 
-        const contentType = response.headers.get('content-type');
         console.log(`[InscribeFromUrlTool] URL validation passed. Content-Type: ${contentType}, Content-Length: ${contentLength || 'unknown'}`);
       } catch (fetchError) {
         clearTimeout(timeoutId);
@@ -106,7 +169,7 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           console.log(`[InscribeFromUrlTool] Warning: URL validation timed out after 10 seconds. Proceeding with inscription attempt.`);
-        } else if (error.message.includes('URL returned error') || error.message.includes('empty content') || error.message.includes('too small')) {
+        } else if (error.message.includes('URL returned error') || error.message.includes('empty content') || error.message.includes('too small') || error.message.includes('HTML')) {
           throw error;
         } else {
           console.log(`[InscribeFromUrlTool] Warning: Could not validate URL with HEAD request: ${error.message}. Proceeding with inscription attempt.`);
@@ -127,17 +190,29 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
     };
 
     try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Inscription timed out after 30 seconds')), 30000);
-      });
+      let result: Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>;
+      
+      if (params.timeoutMs) {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new Error(`Inscription timed out after ${params.timeoutMs}ms`)),
+            params.timeoutMs
+          );
+        });
 
-      const result = await Promise.race([
-        this.inscriberBuilder.inscribe(
+        result = await Promise.race([
+          this.inscriberBuilder.inscribe(
+            { type: 'url', url: params.url },
+            options
+          ),
+          timeoutPromise
+        ]);
+      } else {
+        result = await this.inscriberBuilder.inscribe(
           { type: 'url', url: params.url },
           options
-        ),
-        timeoutPromise
-      ]) as any;
+        );
+      }
 
       if (result.confirmed) {
         const topicId = result.inscription?.topic_id || result.result.topicId;

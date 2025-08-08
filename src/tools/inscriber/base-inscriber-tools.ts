@@ -8,6 +8,7 @@ import {
   InscriberTransactionToolParams,
   InscriberQueryToolParams,
 } from './inscriber-tool-params';
+import type { ContentResolverInterface } from '../../types/content-resolver';
 import { z } from 'zod';
 
 /**
@@ -21,11 +22,13 @@ export abstract class BaseInscriberTransactionTool<
   > = z.ZodObject<z.ZodRawShape>
 > extends BaseHederaTransactionTool<T> {
   protected inscriberBuilder: InscriberBuilder;
+  protected contentResolver: ContentResolverInterface | null;
   namespace = 'inscriber' as const;
 
   constructor(params: InscriberTransactionToolParams) {
     super(params);
     this.inscriberBuilder = params.inscriberBuilder;
+    this.contentResolver = params.contentResolver || null;
   }
 
   /**
@@ -33,6 +36,13 @@ export abstract class BaseInscriberTransactionTool<
    */
   protected getServiceBuilder(): BaseServiceBuilder {
     return this.inscriberBuilder;
+  }
+
+  /**
+   * Get content resolver with fallback to registry
+   */
+  protected getContentResolver(): ContentResolverInterface | null {
+    return this.contentResolver;
   }
 }
 
@@ -47,11 +57,13 @@ export abstract class BaseInscriberQueryTool<
   > = z.ZodObject<z.ZodRawShape>
 > extends BaseHederaQueryTool<T> {
   protected inscriberBuilder: InscriberBuilder;
+  protected contentResolver: ContentResolverInterface | null;
   namespace = 'inscriber' as const;
 
   constructor(params: InscriberQueryToolParams) {
     super(params);
     this.inscriberBuilder = params.inscriberBuilder;
+    this.contentResolver = params.contentResolver || null;
   }
 
   /**
@@ -59,5 +71,12 @@ export abstract class BaseInscriberQueryTool<
    */
   protected getServiceBuilder(): BaseServiceBuilder {
     return this.inscriberBuilder;
+  }
+
+  /**
+   * Get content resolver with fallback to registry
+   */
+  protected getContentResolver(): ContentResolverInterface | null {
+    return this.contentResolver;
   }
 }

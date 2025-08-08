@@ -1,18 +1,21 @@
 import { z } from 'zod';
 import { BaseInscriberQueryTool } from './base-inscriber-tools';
-import { InscriptionOptions } from '@hashgraphonline/standards-sdk';
+import { InscriptionOptions, ContentResolverRegistry } from '@hashgraphonline/standards-sdk';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import { loadConfig } from '../../config/ContentReferenceConfig';
 
-/**
- * Schema for inscribing from buffer
- */
 const inscribeFromBufferSchema = z.object({
-  base64Data: z.string().min(1, 'Base64 data cannot be empty').describe('Base64 encoded content to inscribe. Must contain valid, non-empty content (minimum 10 bytes after decoding).'),
-  fileName: z.string().min(1, 'File name cannot be empty').describe('Name for the inscribed content. Required for all inscriptions.'),
-  mimeType: z
+  base64Data: z
     .string()
-    .optional()
-    .describe('MIME type of the content'),
+    .min(1, 'Data cannot be empty')
+    .describe(
+      'The content to inscribe. Accept BOTH plain text AND base64. Also accepts content reference IDs in format "content-ref:[id]". When user says "inscribe it" or "inscribe the content", use the EXACT content from your previous message or from MCP tool results. DO NOT generate new content. DO NOT create repetitive text. Pass the actual search results or other retrieved content EXACTLY as you received it.'
+    ),
+  fileName: z
+    .string()
+    .min(1, 'File name cannot be empty')
+    .describe('Name for the inscribed content. Required for all inscriptions.'),
+  mimeType: z.string().optional().describe('MIME type of the content'),
   mode: z
     .enum(['file', 'hashinal'])
     .optional()
@@ -40,20 +43,20 @@ const inscribeFromBufferSchema = z.object({
     .int()
     .positive()
     .optional()
-    .describe('Timeout in milliseconds for inscription (default: no timeout)'),
-  apiKey: z
-    .string()
-    .optional()
-    .describe('API key for inscription service'),
+    .describe(
+      'Timeout in milliseconds for inscription (default: no timeout - waits until completion)'
+    ),
+  apiKey: z.string().optional().describe('API key for inscription service'),
 });
 
-
-/**
- * Tool for inscribing content from buffer
- */
-export class InscribeFromBufferTool extends BaseInscriberQueryTool<typeof inscribeFromBufferSchema> {
+export class InscribeFromBufferTool extends BaseInscriberQueryTool<
+  typeof inscribeFromBufferSchema
+> {
   name = 'inscribeFromBuffer';
-  description = 'Inscribe content that you already have (text, data, or files) to the Hedera network. Use this tool when you have content from: Wikipedia articles, MCP tool responses, text data, API responses, or any content you\'ve retrieved. Convert your content to base64 first. DO NOT use inscribeFromUrl for web page content - use this tool instead after retrieving the actual content.';
+  description =
+    'Inscribe content that you have already retrieved or displayed. When user says "inscribe it" after you showed search results or other content, use THIS tool. The base64Data field accepts PLAIN TEXT (not just base64) and content reference IDs in format "content-ref:[id]". Pass the EXACT content from your previous response or MCP tool output. DO NOT generate new content or create repetitive text. Content references are automatically resolved to the original content for inscription.';
+
+  private config = loadConfig();
 
   get specificInputSchema() {
     return inscribeFromBufferSchema;
@@ -63,52 +66,19 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<typeof inscri
     params: z.infer<typeof inscribeFromBufferSchema>,
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
-    console.log(`[DEBUG] InscribeFromBufferTool.executeQuery called`);
-    console.log(`[DEBUG] Buffer tool received base64Data length: ${params.base64Data?.length || 0}`);
-    console.log(`[DEBUG] Buffer tool fileName: ${params.fileName}`);
-    console.log(`[DEBUG] Buffer tool mimeType: ${params.mimeType}`);
-    
-    if (!params.base64Data || params.base64Data.trim() === '') {
-      console.log(`[InscribeFromBufferTool] ERROR: No data provided`);
-      throw new Error('No data provided. Cannot inscribe empty content. Please provide valid base64 encoded data.');
-    }
+    this.validateInput(params);
 
-    if (!params.fileName || params.fileName.trim() === '') {
-      console.log(`[InscribeFromBufferTool] ERROR: No fileName provided`);
-      throw new Error('No fileName provided. A valid fileName is required for inscription.');
-    }
+    const resolvedContent = await this.resolveContent(
+      params.base64Data,
+      params.mimeType,
+      params.fileName
+    );
 
-    let buffer: Buffer;
-    try {
-      buffer = Buffer.from(params.base64Data, 'base64');
-    } catch (error) {
-      console.log(`[InscribeFromBufferTool] ERROR: Invalid base64 data`);
-      throw new Error('Invalid base64 data provided. Please ensure the data is properly base64 encoded.');
-    }
-    
-    console.log(`[InscribeFromBufferTool] Buffer length after conversion: ${buffer.length}`);
-    
-    if (buffer.length === 0) {
-      console.log(`[InscribeFromBufferTool] ERROR: Buffer is empty after conversion`);
-      throw new Error('Buffer is empty after base64 conversion. The provided data appears to be invalid or empty.');
-    }
+    this.validateContent(resolvedContent.buffer);
 
-    if (buffer.length < 10) {
-      console.log(`[InscribeFromBufferTool] WARNING: Buffer is very small (${buffer.length} bytes)`);
-      console.log(`[InscribeFromBufferTool] Buffer content preview: ${buffer.toString('utf8', 0, Math.min(buffer.length, 50))}`);
-      throw new Error(`Buffer content is too small (${buffer.length} bytes). This may indicate empty or invalid content. Please verify the source data contains actual content.`);
-    }
-
-    const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(params.base64Data);
-    if (!isValidBase64) {
-      console.log(`[InscribeFromBufferTool] ERROR: Invalid base64 format`);
-      throw new Error('Invalid base64 format. The data does not appear to be properly base64 encoded.');
-    }
-
-    if (buffer.toString('utf8', 0, Math.min(buffer.length, 100)).trim() === '') {
-      console.log(`[InscribeFromBufferTool] ERROR: Buffer contains only whitespace or empty content`);
-      throw new Error('Buffer contains only whitespace or empty content. Cannot inscribe meaningless data.');
-    }
+    const buffer = resolvedContent.buffer;
+    const resolvedMimeType = resolvedContent.mimeType || params.mimeType;
+    const resolvedFileName = resolvedContent.fileName || params.fileName;
 
     const options: InscriptionOptions = {
       mode: params.mode,
@@ -119,55 +89,222 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<typeof inscri
       waitMaxAttempts: 10,
       waitIntervalMs: 3000,
       apiKey: params.apiKey,
-      network: this.inscriberBuilder['hederaKit'].client.network.toString().includes('mainnet') ? 'mainnet' : 'testnet',
+      network: this.inscriberBuilder['hederaKit'].client.network
+        .toString()
+        .includes('mainnet')
+        ? 'mainnet'
+        : 'testnet',
     };
 
+    const timeoutMs =
+      params.timeoutMs || (options.waitForConfirmation ? 60000 : undefined);
+
     try {
-      let result: any;
-      
-      if (params.timeoutMs) {
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(
-            () => reject(new Error(`Inscription timed out after ${params.timeoutMs}ms`)),
-            params.timeoutMs
-          );
-        });
-
-        result = await Promise.race([
-          this.inscriberBuilder.inscribe(
-            {
-              type: 'buffer',
-              buffer,
-              fileName: params.fileName,
-              mimeType: params.mimeType,
-            },
-            options
-          ),
-          timeoutPromise,
-        ]);
-      } else {
-        result = await this.inscriberBuilder.inscribe(
-          {
-            type: 'buffer',
-            buffer,
-            fileName: params.fileName,
-            mimeType: params.mimeType,
-          },
-          options
-        );
-      }
-
-      if (result.confirmed) {
-        const topicId = result.inscription?.topic_id || result.result.topicId;
-        const network = options.network || 'testnet';
-        const cdnUrl = topicId ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}` : null;
-        return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\nTopic ID: ${topicId || 'N/A'}${cdnUrl ? `\nView inscription: ${cdnUrl}` : ''}\n\nThe inscription is now available.`;
-      } else {
-        return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
-      }
+      const result = await this.executeInscription(
+        buffer,
+        resolvedFileName,
+        resolvedMimeType,
+        options,
+        timeoutMs
+      );
+      return this.formatInscriptionResult(result, options);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to inscribe from buffer';
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to inscribe from buffer';
       throw new Error(`Inscription failed: ${errorMessage}`);
     }
+  }
+
+  private validateInput(
+    params: z.infer<typeof inscribeFromBufferSchema>
+  ): void {
+    if (!params.base64Data || params.base64Data.trim() === '') {
+      throw new Error(
+        'No data provided. Cannot inscribe empty content. Please provide valid content, plain text, base64 encoded data, or a content reference ID.'
+      );
+    }
+
+    if (!params.fileName || params.fileName.trim() === '') {
+      throw new Error(
+        'No fileName provided. A valid fileName is required for inscription.'
+      );
+    }
+  }
+
+  private validateContent(buffer: Buffer): void {
+    if (buffer.length === 0) {
+      throw new Error(
+        'Buffer is empty after conversion. The provided data appears to be invalid or empty.'
+      );
+    }
+
+    if (buffer.length > this.config.maxInscriptionSize) {
+      const maxSizeKB = Math.round(this.config.maxInscriptionSize / 1024);
+      const bufferSizeKB = Math.round(buffer.length / 1024);
+      throw new Error(
+        `Content is too large for inscription (${bufferSizeKB}KB, max ${maxSizeKB}KB). Please summarize or extract key information before inscribing.`
+      );
+    }
+
+    if (buffer.length < this.config.minContentSize) {
+      throw new Error(
+        `Buffer content is too small (${buffer.length} bytes). This may indicate empty or invalid content. Please verify the source data contains actual content.`
+      );
+    }
+
+    if (
+      buffer.toString('utf8', 0, Math.min(buffer.length, 100)).trim() === ''
+    ) {
+      throw new Error(
+        'Buffer contains only whitespace or empty content. Cannot inscribe meaningless data.'
+      );
+    }
+
+    const contentStr = buffer.toString('utf8');
+    const emptyHtmlPattern = /<a\s+href=["'][^"']+["']\s*>\s*<\/a>/i;
+    const hasOnlyEmptyLinks =
+      emptyHtmlPattern.test(contentStr) &&
+      contentStr.replace(/<[^>]+>/g, '').trim().length < 50;
+
+    if (hasOnlyEmptyLinks) {
+      throw new Error(
+        'Buffer contains empty HTML with only links and no actual content. When inscribing content from external sources, use the actual article text you retrieved, not empty HTML with links.'
+      );
+    }
+  }
+
+  private async executeInscription(
+    buffer: Buffer,
+    fileName: string,
+    mimeType: string | undefined,
+    options: InscriptionOptions,
+    timeoutMs?: number
+  ): Promise<Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>> {
+    const inscriptionData = {
+      type: 'buffer' as const,
+      buffer,
+      fileName,
+      mimeType,
+    };
+
+    if (timeoutMs) {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`Inscription timed out after ${timeoutMs}ms`)),
+          timeoutMs
+        );
+      });
+
+      return Promise.race([
+        this.inscriberBuilder.inscribe(inscriptionData, options),
+        timeoutPromise,
+      ]);
+    }
+
+    return this.inscriberBuilder.inscribe(inscriptionData, options);
+  }
+
+  private formatInscriptionResult(
+    result: Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>,
+    options: InscriptionOptions
+  ): string {
+    if (result.confirmed) {
+      const topicId = result.inscription?.topic_id || result.result.topicId;
+      const network = options.network || 'testnet';
+      const cdnUrl = topicId
+        ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}`
+        : null;
+      return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${
+        result.result.transactionId
+      }\nTopic ID: ${topicId || 'N/A'}${
+        cdnUrl ? `\nView inscription: ${cdnUrl}` : ''
+      }\n\nThe inscription is now available.`;
+    }
+
+    return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
+  }
+
+  private async resolveContent(
+    input: string,
+    providedMimeType?: string,
+    providedFileName?: string
+  ): Promise<{
+    buffer: Buffer;
+    mimeType?: string;
+    fileName?: string;
+    wasReference?: boolean;
+  }> {
+    const trimmedInput = input.trim();
+    
+    // Try to get resolver from either injected dependency or registry
+    const resolver = this.getContentResolver() || ContentResolverRegistry.getResolver();
+    
+    if (!resolver) {
+      // No resolver available, handle content directly
+      return this.handleDirectContent(trimmedInput, providedMimeType, providedFileName);
+    }
+    
+    const referenceId = resolver.extractReferenceId(trimmedInput);
+
+    if (referenceId) {
+      try {
+        const resolution = await resolver.resolveReference(referenceId);
+
+        return {
+          buffer: resolution.content,
+          mimeType: resolution.metadata?.mimeType || providedMimeType,
+          fileName: resolution.metadata?.fileName || providedFileName,
+          wasReference: true,
+        };
+      } catch (error) {
+        const errorMsg =
+          error instanceof Error
+            ? error.message
+            : 'Unknown error resolving reference';
+        throw new Error(`Reference resolution failed: ${errorMsg}`);
+      }
+    }
+
+    // No reference found, handle as direct content
+    return this.handleDirectContent(trimmedInput, providedMimeType, providedFileName);
+  }
+
+  private handleDirectContent(
+    input: string,
+    providedMimeType?: string,
+    providedFileName?: string
+  ): {
+    buffer: Buffer;
+    mimeType?: string;
+    fileName?: string;
+    wasReference?: boolean;
+  } {
+    const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(input);
+
+    if (isValidBase64) {
+      try {
+        const buffer = Buffer.from(input, 'base64');
+        return {
+          buffer,
+          mimeType: providedMimeType,
+          fileName: providedFileName,
+          wasReference: false,
+        };
+      } catch (error) {
+        throw new Error(
+          'Failed to decode base64 data. Please ensure the data is properly encoded.'
+        );
+      }
+    }
+
+    const buffer = Buffer.from(input, 'utf8');
+    return {
+      buffer,
+      mimeType: providedMimeType || 'text/plain',
+      fileName: providedFileName,
+      wasReference: false,
+    };
   }
 }
