@@ -9,6 +9,11 @@ import {
   InscriberQueryToolParams,
 } from './inscriber-tool-params';
 import type { ContentResolverInterface } from '../../types/content-resolver';
+import {
+  InscriptionInput,
+  InscriptionOptions,
+  QuoteResult,
+} from '@hashgraphonline/standards-sdk';
 import { z } from 'zod';
 
 /**
@@ -44,6 +49,47 @@ export abstract class BaseInscriberTransactionTool<
   protected getContentResolver(): ContentResolverInterface | null {
     return this.contentResolver;
   }
+
+  /**
+   * Generate a quote for an inscription without executing it
+   * @param input - The inscription input data
+   * @param options - Inscription options
+   * @returns Promise containing the quote result
+   */
+  protected async generateInscriptionQuote(
+    input: InscriptionInput,
+    options: InscriptionOptions
+  ): Promise<QuoteResult> {
+    const operatorId = this.inscriberBuilder['hederaKit'].signer.getAccountId().toString();
+    const operatorPrivateKey = this.inscriberBuilder['hederaKit'].signer?.getOperatorPrivateKey()
+      ? this.inscriberBuilder['hederaKit'].signer.getOperatorPrivateKey().toStringRaw()
+      : '';
+
+    const network = this.inscriberBuilder['hederaKit'].client.network;
+    const networkType = network.toString().includes('mainnet')
+      ? 'mainnet'
+      : 'testnet';
+
+    const clientConfig = {
+      accountId: operatorId,
+      privateKey: operatorPrivateKey,
+      network: networkType as 'mainnet' | 'testnet',
+    };
+
+    const quoteOptions = {
+      ...options,
+      quoteOnly: true,
+      network: networkType as 'mainnet' | 'testnet',
+    };
+
+    const result = await this.inscriberBuilder.inscribe(input, quoteOptions);
+    
+    if (!result.quote || result.confirmed) {
+      throw new Error('Failed to generate quote - unexpected response type');
+    }
+
+    return result.result as QuoteResult;
+  }
 }
 
 /**
@@ -78,5 +124,46 @@ export abstract class BaseInscriberQueryTool<
    */
   protected getContentResolver(): ContentResolverInterface | null {
     return this.contentResolver;
+  }
+
+  /**
+   * Generate a quote for an inscription without executing it
+   * @param input - The inscription input data
+   * @param options - Inscription options
+   * @returns Promise containing the quote result
+   */
+  protected async generateInscriptionQuote(
+    input: InscriptionInput,
+    options: InscriptionOptions
+  ): Promise<QuoteResult> {
+    const operatorId = this.inscriberBuilder['hederaKit'].signer.getAccountId().toString();
+    const operatorPrivateKey = this.inscriberBuilder['hederaKit'].signer?.getOperatorPrivateKey()
+      ? this.inscriberBuilder['hederaKit'].signer.getOperatorPrivateKey().toStringRaw()
+      : '';
+
+    const network = this.inscriberBuilder['hederaKit'].client.network;
+    const networkType = network.toString().includes('mainnet')
+      ? 'mainnet'
+      : 'testnet';
+
+    const clientConfig = {
+      accountId: operatorId,
+      privateKey: operatorPrivateKey,
+      network: networkType as 'mainnet' | 'testnet',
+    };
+
+    const quoteOptions = {
+      ...options,
+      quoteOnly: true,
+      network: networkType as 'mainnet' | 'testnet',
+    };
+
+    const result = await this.inscriberBuilder.inscribe(input, quoteOptions);
+    
+    if (!result.quote || result.confirmed) {
+      throw new Error('Failed to generate quote - unexpected response type');
+    }
+
+    return result.result as QuoteResult;
   }
 }

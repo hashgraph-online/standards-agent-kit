@@ -39,6 +39,11 @@ const inscribeFromFileSchema = z.object({
     .optional()
     .describe('Timeout in milliseconds for inscription (default: no timeout)'),
   apiKey: z.string().optional().describe('API key for inscription service'),
+  quoteOnly: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('If true, returns a cost quote instead of executing the inscription'),
 });
 
 /**
@@ -49,7 +54,7 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
 > {
   name = 'inscribeFromFile';
   description =
-    'Inscribe content from a local file to the Hedera network using a file path. IMPORTANT: Only use this tool when you have a valid file path to actual content. The file must exist and contain meaningful data (minimum 10 bytes). For files accessed through MCP filesystem tools, consider reading the file content first and using inscribeFromBuffer instead.';
+    'Inscribe content from a local file to the Hedera network using a file path. IMPORTANT: Only use this tool when you have a valid file path to actual content. The file must exist and contain meaningful data (minimum 10 bytes). For files accessed through MCP filesystem tools, consider reading the file content first and using inscribeFromBuffer instead. Set quoteOnly=true to get cost estimates without executing the inscription.';
 
   get specificInputSchema(): typeof inscribeFromFileSchema {
     return inscribeFromFileSchema;
@@ -61,7 +66,6 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
   ): Promise<unknown> {
     console.log(`[DEBUG] InscribeFromFileTool.executeQuery called with: ${params.filePath}`);
     
-    // File validation
     let fileContent: Buffer;
     try {
       console.log(`[DEBUG] Checking file: ${params.filePath}`);
@@ -138,7 +142,7 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
       metadata: params.metadata,
       tags: params.tags,
       chunkSize: params.chunkSize,
-      waitForConfirmation: params.waitForConfirmation ?? true,
+      waitForConfirmation: params.quoteOnly ? false : (params.waitForConfirmation ?? true),
       waitMaxAttempts: 10,
       waitIntervalMs: 3000,
       apiKey: params.apiKey,
@@ -147,10 +151,45 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
         .includes('mainnet')
         ? 'mainnet'
         : 'testnet',
+      quoteOnly: params.quoteOnly,
     };
 
+    if (params.quoteOnly) {
+      try {
+        const quote = await this.generateInscriptionQuote(
+          {
+            type: 'buffer',
+            buffer: Buffer.from(base64Data, 'base64'),
+            fileName,
+            mimeType,
+          },
+          options
+        );
+        
+        return {
+          success: true,
+          quote: {
+            totalCostHbar: quote.totalCostHbar,
+            validUntil: quote.validUntil,
+            breakdown: quote.breakdown,
+          },
+          contentInfo: {
+            fileName,
+            mimeType,
+            sizeBytes: fileContent.length,
+            filePath: params.filePath,
+          },
+          message: `Quote generated for file: ${fileName} (${(fileContent.length / 1024).toFixed(2)} KB)\nTotal cost: ${quote.totalCostHbar} HBAR\nQuote valid until: ${new Date(quote.validUntil).toLocaleString()}`,
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to generate inscription quote';
+        throw new Error(`Quote generation failed: ${errorMessage}`);
+      }
+    }
+
     try {
-      let result: any;
+      let result: unknown;
       
       if (params.timeoutMs) {
         const timeoutPromise = new Promise((_, reject) => {
@@ -184,19 +223,22 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
         );
       }
 
-      if (result.confirmed) {
-        const topicId = result.inscription?.topic_id || result.result.topicId;
+      const inscriptionResult = result as any;
+      if (inscriptionResult.confirmed && !inscriptionResult.quote) {
+        const topicId = inscriptionResult.inscription?.topic_id || inscriptionResult.result.topicId;
         const network = options.network || 'testnet';
         const cdnUrl = topicId
           ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}`
           : null;
         return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${
-          result.result.transactionId
+          inscriptionResult.result.transactionId
         }\nTopic ID: ${topicId || 'N/A'}${
           cdnUrl ? `\nView inscription: ${cdnUrl}` : ''
         }\n\nThe inscription is now available.`;
+      } else if (!inscriptionResult.quote && !inscriptionResult.confirmed) {
+        return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${inscriptionResult.result.transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
       } else {
-        return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
+        return 'Inscription operation completed.';
       }
     } catch (error) {
       const errorMessage =

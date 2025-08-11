@@ -40,6 +40,11 @@ const inscribeFromUrlSchema = z.object({
     .string()
     .optional()
     .describe('API key for inscription service'),
+  quoteOnly: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('If true, returns a cost quote instead of executing the inscription'),
 });
 
 
@@ -48,7 +53,7 @@ const inscribeFromUrlSchema = z.object({
  */
 export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeFromUrlSchema> {
   name = 'inscribeFromUrl';
-  description = 'ONLY for direct FILE DOWNLOAD URLs ending with file extensions (.pdf, .jpg, .png, .json, .zip). NEVER use for web pages, articles, or ANY HTML content - it WILL FAIL. If you have already retrieved content from any source (including MCP tools), you MUST use inscribeFromBuffer instead. This tool downloads files from URLs - it does NOT inscribe content you already have. When asked to "inscribe it" after retrieving content, ALWAYS use inscribeFromBuffer with the actual content.';
+  description = 'ONLY for direct FILE DOWNLOAD URLs ending with file extensions (.pdf, .jpg, .png, .json, .zip). NEVER use for web pages, articles, or ANY HTML content - it WILL FAIL. If you have already retrieved content from any source (including MCP tools), you MUST use inscribeFromBuffer instead. This tool downloads files from URLs - it does NOT inscribe content you already have. When asked to "inscribe it" after retrieving content, ALWAYS use inscribeFromBuffer with the actual content. Set quoteOnly=true to get cost estimates without executing the inscription.';
 
   get specificInputSchema() {
     return inscribeFromUrlSchema;
@@ -86,7 +91,6 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       try {
-        // First try HEAD request
         const headResponse = await fetch(params.url, {
           method: 'HEAD',
           signal: controller.signal,
@@ -101,7 +105,6 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
         const contentType = headResponse.headers.get('content-type') || '';
         const contentLength = headResponse.headers.get('content-length');
         
-        // Check if content type indicates HTML/web page
         const webPageContentTypes = [
           'text/html',
           'application/xhtml+xml',
@@ -120,7 +123,6 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
           throw new Error(`URL content is too small (${contentLength} bytes). Content must be at least 10 bytes.`);
         }
         
-        // If HEAD doesn't provide content-type, do a partial GET to check
         if (!contentType || contentType === 'application/octet-stream') {
           console.log(`[InscribeFromUrlTool] Content-Type unclear, fetching first 1KB to verify...`);
           
@@ -142,7 +144,6 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
               const bytes = new Uint8Array(buffer);
               const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes.slice(0, 512));
               
-              // Check if it looks like HTML
               if (text.toLowerCase().includes('<!doctype html') || 
                   text.toLowerCase().includes('<html') ||
                   text.match(/<meta\s+[^>]*>/i) ||
@@ -155,7 +156,6 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
             if (getError instanceof Error && getError.message.includes('HTML content')) {
               throw getError;
             }
-            // If partial GET fails, continue anyway
             console.log(`[InscribeFromUrlTool] Could not perform partial GET validation: ${getError instanceof Error ? getError.message : 'Unknown error'}`);
           }
         }
@@ -182,12 +182,39 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
       metadata: params.metadata,
       tags: params.tags,
       chunkSize: params.chunkSize,
-      waitForConfirmation: params.waitForConfirmation ?? true,
+      waitForConfirmation: params.quoteOnly ? false : (params.waitForConfirmation ?? true),
       waitMaxAttempts: 10,
       waitIntervalMs: 3000,
       apiKey: params.apiKey,
       network: this.inscriberBuilder['hederaKit'].client.network.toString().includes('mainnet') ? 'mainnet' : 'testnet',
+      quoteOnly: params.quoteOnly,
     };
+
+    if (params.quoteOnly) {
+      try {
+        const quote = await this.generateInscriptionQuote(
+          { type: 'url', url: params.url },
+          options
+        );
+        
+        return {
+          success: true,
+          quote: {
+            totalCostHbar: quote.totalCostHbar,
+            validUntil: quote.validUntil,
+            breakdown: quote.breakdown,
+          },
+          contentInfo: {
+            url: params.url,
+          },
+          message: `Quote generated for URL: ${params.url}\nTotal cost: ${quote.totalCostHbar} HBAR\nQuote valid until: ${new Date(quote.validUntil).toLocaleString()}`,
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to generate inscription quote';
+        throw new Error(`Quote generation failed: ${errorMessage}`);
+      }
+    }
 
     try {
       let result: Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>;
@@ -214,13 +241,15 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<typeof inscribeF
         );
       }
 
-      if (result.confirmed) {
-        const topicId = result.inscription?.topic_id || result.result.topicId;
+      if (result.confirmed && !result.quote) {
+        const topicId = result.inscription?.topic_id || (result.result as any).topicId;
         const network = options.network || 'testnet';
         const cdnUrl = topicId ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}` : null;
-        return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\nTopic ID: ${topicId || 'N/A'}${cdnUrl ? `\nView inscription: ${cdnUrl}` : ''}\n\nThe inscription is now available.`;
+        return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${(result.result as any).transactionId}\nTopic ID: ${topicId || 'N/A'}${cdnUrl ? `\nView inscription: ${cdnUrl}` : ''}\n\nThe inscription is now available.`;
+      } else if (!result.quote && !result.confirmed) {
+        return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${(result.result as any).transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
       } else {
-        return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
+        return 'Inscription operation completed.';
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to inscribe from URL';

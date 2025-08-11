@@ -54,6 +54,11 @@ const inscribeHashinalSchema = z.object({
     .string()
     .optional()
     .describe('API key for inscription service'),
+  quoteOnly: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('If true, returns a cost quote instead of executing the inscription'),
 });
 
 
@@ -62,7 +67,7 @@ const inscribeHashinalSchema = z.object({
  */
 export class InscribeHashinalTool extends BaseInscriberQueryTool<typeof inscribeHashinalSchema> {
   name = 'inscribeHashinal';
-  description = 'Inscribe content as a Hashinal NFT on the Hedera network';
+  description = 'Inscribe content as a Hashinal NFT on the Hedera network. Set quoteOnly=true to get cost estimates without executing the inscription.';
 
   get specificInputSchema() {
     return inscribeHashinalSchema;
@@ -87,12 +92,42 @@ export class InscribeHashinalTool extends BaseInscriberQueryTool<typeof inscribe
       jsonFileURL: params.jsonFileURL,
       tags: params.tags,
       chunkSize: params.chunkSize,
-      waitForConfirmation: params.waitForConfirmation ?? true,
+      waitForConfirmation: params.quoteOnly ? false : (params.waitForConfirmation ?? true),
       waitMaxAttempts: 10,
       waitIntervalMs: 3000,
       apiKey: params.apiKey,
       network: this.inscriberBuilder['hederaKit'].client.network.toString().includes('mainnet') ? 'mainnet' : 'testnet',
+      quoteOnly: params.quoteOnly,
     };
+
+    if (params.quoteOnly) {
+      try {
+        const quote = await this.generateInscriptionQuote(
+          { type: 'url', url: params.url },
+          options
+        );
+        
+        return {
+          success: true,
+          quote: {
+            totalCostHbar: quote.totalCostHbar,
+            validUntil: quote.validUntil,
+            breakdown: quote.breakdown,
+          },
+          contentInfo: {
+            url: params.url,
+            name: params.name,
+            creator: params.creator,
+            type: params.type,
+          },
+          message: `Quote generated for Hashinal NFT: ${params.name}\nCreator: ${params.creator}\nTotal cost: ${quote.totalCostHbar} HBAR\nQuote valid until: ${new Date(quote.validUntil).toLocaleString()}`,
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to generate inscription quote';
+        throw new Error(`Quote generation failed: ${errorMessage}`);
+      }
+    }
 
     try {
       let result: Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>;
@@ -119,13 +154,15 @@ export class InscribeHashinalTool extends BaseInscriberQueryTool<typeof inscribe
         );
       }
 
-      if (result.confirmed) {
-        const topicId = result.inscription?.topic_id || result.result.topicId;
+      if (result.confirmed && !result.quote) {
+        const topicId = result.inscription?.topic_id || (result.result as any).topicId;
         const network = options.network || 'testnet';
         const cdnUrl = topicId ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}` : null;
-        return `Successfully inscribed and confirmed Hashinal NFT on the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\nTopic ID: ${topicId || 'N/A'}${cdnUrl ? `\nView inscription: ${cdnUrl}` : ''}\n\nThe Hashinal NFT is now available.`;
+        return `Successfully inscribed and confirmed Hashinal NFT on the Hedera network!\n\nTransaction ID: ${(result.result as any).transactionId}\nTopic ID: ${topicId || 'N/A'}${cdnUrl ? `\nView inscription: ${cdnUrl}` : ''}\n\nThe Hashinal NFT is now available.`;
+      } else if (!result.quote && !result.confirmed) {
+        return `Successfully submitted Hashinal NFT inscription to the Hedera network!\n\nTransaction ID: ${(result.result as any).transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
       } else {
-        return `Successfully submitted Hashinal NFT inscription to the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
+        return 'Inscription operation completed.';
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to inscribe Hashinal NFT';

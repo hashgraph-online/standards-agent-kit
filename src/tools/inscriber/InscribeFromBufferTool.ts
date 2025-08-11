@@ -47,6 +47,11 @@ const inscribeFromBufferSchema = z.object({
       'Timeout in milliseconds for inscription (default: no timeout - waits until completion)'
     ),
   apiKey: z.string().optional().describe('API key for inscription service'),
+  quoteOnly: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('If true, returns a cost quote instead of executing the inscription'),
 });
 
 export class InscribeFromBufferTool extends BaseInscriberQueryTool<
@@ -54,7 +59,7 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
 > {
   name = 'inscribeFromBuffer';
   description =
-    'Inscribe content that you have already retrieved or displayed. When user says "inscribe it" after you showed search results or other content, use THIS tool. The base64Data field accepts PLAIN TEXT (not just base64) and content reference IDs in format "content-ref:[id]". Pass the EXACT content from your previous response or MCP tool output. DO NOT generate new content or create repetitive text. Content references are automatically resolved to the original content for inscription.';
+    'Inscribe content that you have already retrieved or displayed. When user says "inscribe it" after you showed search results or other content, use THIS tool. The base64Data field accepts PLAIN TEXT (not just base64) and content reference IDs in format "content-ref:[id]". Pass the EXACT content from your previous response or MCP tool output. DO NOT generate new content or create repetitive text. Content references are automatically resolved to the original content for inscription. Set quoteOnly=true to get cost estimates without executing the inscription.';
 
   private config = loadConfig();
 
@@ -85,7 +90,7 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
       metadata: params.metadata,
       tags: params.tags,
       chunkSize: params.chunkSize,
-      waitForConfirmation: params.waitForConfirmation ?? true,
+      waitForConfirmation: params.quoteOnly ? false : (params.waitForConfirmation ?? true),
       waitMaxAttempts: 10,
       waitIntervalMs: 3000,
       apiKey: params.apiKey,
@@ -94,7 +99,41 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
         .includes('mainnet')
         ? 'mainnet'
         : 'testnet',
+      quoteOnly: params.quoteOnly,
     };
+
+    if (params.quoteOnly) {
+      try {
+        const quote = await this.generateInscriptionQuote(
+          {
+            type: 'buffer',
+            buffer,
+            fileName: resolvedFileName,
+            mimeType: resolvedMimeType,
+          },
+          options
+        );
+        
+        return {
+          success: true,
+          quote: {
+            totalCostHbar: quote.totalCostHbar,
+            validUntil: quote.validUntil,
+            breakdown: quote.breakdown,
+          },
+          contentInfo: {
+            fileName: resolvedFileName,
+            mimeType: resolvedMimeType,
+            sizeBytes: buffer.length,
+          },
+          message: `Quote generated for buffer content: ${resolvedFileName} (${(buffer.length / 1024).toFixed(2)} KB)\nTotal cost: ${quote.totalCostHbar} HBAR\nQuote valid until: ${new Date(quote.validUntil).toLocaleString()}`,
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to generate inscription quote';
+        throw new Error(`Quote generation failed: ${errorMessage}`);
+      }
+    }
 
     const timeoutMs =
       params.timeoutMs || (options.waitForConfirmation ? 60000 : undefined);
@@ -210,20 +249,24 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
     result: Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>,
     options: InscriptionOptions
   ): string {
-    if (result.confirmed) {
-      const topicId = result.inscription?.topic_id || result.result.topicId;
+    if (result.confirmed && !result.quote) {
+      const topicId = result.inscription?.topic_id || (result.result as any).topicId;
       const network = options.network || 'testnet';
       const cdnUrl = topicId
         ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}`
         : null;
       return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${
-        result.result.transactionId
+        (result.result as any).transactionId
       }\nTopic ID: ${topicId || 'N/A'}${
         cdnUrl ? `\nView inscription: ${cdnUrl}` : ''
       }\n\nThe inscription is now available.`;
     }
 
-    return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${result.result.transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
+    if (!result.quote && !result.confirmed) {
+      return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${(result.result as any).transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
+    }
+
+    return 'Inscription operation completed.';
   }
 
   private async resolveContent(
@@ -238,11 +281,9 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
   }> {
     const trimmedInput = input.trim();
     
-    // Try to get resolver from either injected dependency or registry
     const resolver = this.getContentResolver() || ContentResolverRegistry.getResolver();
     
     if (!resolver) {
-      // No resolver available, handle content directly
       return this.handleDirectContent(trimmedInput, providedMimeType, providedFileName);
     }
     
@@ -267,7 +308,6 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
       }
     }
 
-    // No reference found, handle as direct content
     return this.handleDirectContent(trimmedInput, providedMimeType, providedFileName);
   }
 
