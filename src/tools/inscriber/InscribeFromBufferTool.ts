@@ -25,7 +25,7 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
 > {
   name = 'inscribeFromBuffer';
   description =
-    'Inscribe content that you have already retrieved or displayed as standard file inscription (NOT for hashinal NFTs - use InscribeHashinalTool for NFTs). When user says "inscribe it" after you showed search results or other content, use THIS tool. The base64Data field accepts PLAIN TEXT (not just base64) and content reference IDs in format "content-ref:[id]". Pass the EXACT content from your previous response or MCP tool output. DO NOT generate new content or create repetitive text. Content references are automatically resolved to the original content for inscription. Set quoteOnly=true to get cost estimates without executing the inscription.';
+    'Use ONLY for inscribing regular files or content (NOT for NFT/Hashinal inscriptions). When user says "inscribe it" after you showed search results or other content WITHOUT mentioning NFT/hashinal, use THIS tool. The base64Data field accepts PLAIN TEXT (not just base64) and content reference IDs in format "content-ref:[id]". Pass the EXACT content from your previous response or MCP tool output. DO NOT generate new content or create repetitive text. Content references are automatically resolved to the original content for inscription. Set quoteOnly=true to get cost estimates without executing the inscription. NEVER use this for Hashinal NFTs - always use InscribeHashinalTool instead when user mentions hashinal, NFT, dynamic, or minting.';
 
   private config = loadConfig();
 

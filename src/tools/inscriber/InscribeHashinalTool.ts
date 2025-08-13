@@ -123,7 +123,7 @@ export class InscribeHashinalTool extends BaseInscriberQueryTool<
 > {
   name = 'inscribeHashinal';
   description =
-    'STEP 1: Inscribe content as Hashinal NFT. This tool creates the inscription and returns metadataForMinting (HRL format). CRITICAL: You MUST use the metadataForMinting field from this tool output as the metadata parameter when calling mint NFT tools. DO NOT use the original content reference for minting. This tool only inscribes - call minting tools separately after this completes. Use fileStandard=6 for dynamic Hashinals (HCS-6) or fileStandard=1 for static Hashinals (HCS-5).';
+    'Use this tool when user wants to inscribe content as a Hashinal for NFT minting (includes keywords: hashinal, dynamic hashinal, static hashinal, NFT inscription, mint). STEP 1: Inscribe content as Hashinal NFT. This tool creates the inscription and returns metadataForMinting (HRL format). CRITICAL: You MUST use the metadataForMinting field from this tool output as the metadata parameter when calling mint NFT tools. DO NOT use the original content reference for minting. This tool only inscribes - call minting tools separately after this completes. IMPORTANT: Set fileStandard="6" for dynamic Hashinals (when user says "dynamic") or fileStandard="1" for static Hashinals (default). Accepts base64Data, contentRef, or URL.';
 
   get specificInputSchema() {
     return inscribeHashinalSchema;
@@ -177,8 +177,8 @@ export class InscribeHashinalTool extends BaseInscriberQueryTool<
       waitForConfirmation: params.quoteOnly
         ? false
         : params.waitForConfirmation ?? true,
-      waitMaxAttempts: 10,
-      waitIntervalMs: 3000,
+      waitMaxAttempts: 30,
+      waitIntervalMs: 5000,
       apiKey: params.apiKey,
       network: this.inscriberBuilder['hederaKit'].client.network
         .toString()
