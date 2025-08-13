@@ -9,7 +9,12 @@ import * as path from 'path';
  * Schema for inscribing from file
  */
 const inscribeFromFileSchema = z.object({
-  filePath: z.string().min(1, 'File path cannot be empty').describe('The file path of the content to inscribe. Must point to a valid, non-empty file.'),
+  filePath: z
+    .string()
+    .min(1, 'File path cannot be empty')
+    .describe(
+      'The file path of the content to inscribe. Must point to a valid, non-empty file.'
+    ),
   mode: z
     .enum(['file', 'hashinal'])
     .optional()
@@ -43,7 +48,9 @@ const inscribeFromFileSchema = z.object({
     .boolean()
     .optional()
     .default(false)
-    .describe('If true, returns a cost quote instead of executing the inscription'),
+    .describe(
+      'If true, returns a cost quote instead of executing the inscription'
+    ),
 });
 
 /**
@@ -64,8 +71,10 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
     params: z.infer<typeof inscribeFromFileSchema>,
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
-    console.log(`[DEBUG] InscribeFromFileTool.executeQuery called with: ${params.filePath}`);
-    
+    console.log(
+      `[DEBUG] InscribeFromFileTool.executeQuery called with: ${params.filePath}`
+    );
+
     let fileContent: Buffer;
     try {
       console.log(`[DEBUG] Checking file: ${params.filePath}`);
@@ -91,7 +100,12 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
       }
 
       if (stats.size > 100 * 1024 * 1024) {
-        console.log(`[InscribeFromFileTool] WARNING: Large file detected (${(stats.size / (1024 * 1024)).toFixed(2)} MB)`);
+        console.log(
+          `[InscribeFromFileTool] WARNING: Large file detected (${(
+            stats.size /
+            (1024 * 1024)
+          ).toFixed(2)} MB)`
+        );
       }
 
       this.logger?.info('Reading file content...');
@@ -113,7 +127,11 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
       const fileName = path.basename(params.filePath);
       const mimeType = this.getMimeType(fileName);
       if (mimeType.startsWith('text/') || mimeType === 'application/json') {
-        const textContent = fileContent.toString('utf8', 0, Math.min(fileContent.length, 1000));
+        const textContent = fileContent.toString(
+          'utf8',
+          0,
+          Math.min(fileContent.length, 1000)
+        );
         if (textContent.trim() === '') {
           throw new Error(
             `File "${params.filePath}" contains only whitespace or empty content. Cannot inscribe meaningless data.`
@@ -142,7 +160,9 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
       metadata: params.metadata,
       tags: params.tags,
       chunkSize: params.chunkSize,
-      waitForConfirmation: params.quoteOnly ? false : (params.waitForConfirmation ?? true),
+      waitForConfirmation: params.quoteOnly
+        ? false
+        : params.waitForConfirmation ?? true,
       waitMaxAttempts: 10,
       waitIntervalMs: 3000,
       apiKey: params.apiKey,
@@ -165,7 +185,7 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
           },
           options
         );
-        
+
         return {
           success: true,
           quote: {
@@ -179,22 +199,31 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
             sizeBytes: fileContent.length,
             filePath: params.filePath,
           },
-          message: `Quote generated for file: ${fileName} (${(fileContent.length / 1024).toFixed(2)} KB)\nTotal cost: ${quote.totalCostHbar} HBAR\nQuote valid until: ${new Date(quote.validUntil).toLocaleString()}`,
+          message: `Estimated Quote for file: ${fileName} (${(
+            fileContent.length / 1024
+          ).toFixed(2)} KB)\nTotal cost: ${
+            quote.totalCostHbar
+          } HBAR`,
         };
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : 'Failed to generate inscription quote';
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate inscription quote';
         throw new Error(`Quote generation failed: ${errorMessage}`);
       }
     }
 
     try {
       let result: unknown;
-      
+
       if (params.timeoutMs) {
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(
-            () => reject(new Error(`Inscription timed out after ${params.timeoutMs}ms`)),
+            () =>
+              reject(
+                new Error(`Inscription timed out after ${params.timeoutMs}ms`)
+              ),
             params.timeoutMs
           );
         });
@@ -225,7 +254,9 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
 
       const inscriptionResult = result as any;
       if (inscriptionResult.confirmed && !inscriptionResult.quote) {
-        const topicId = inscriptionResult.inscription?.topic_id || inscriptionResult.result.topicId;
+        const topicId =
+          inscriptionResult.inscription?.topic_id ||
+          inscriptionResult.result.topicId;
         const network = options.network || 'testnet';
         const cdnUrl = topicId
           ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}`

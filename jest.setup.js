@@ -225,77 +225,6 @@ global.crypto = {
   },
 };
 
-jest.mock('@hashgraph/sdk', () => ({
-  Client: {
-    forTestnet: jest.fn().mockReturnValue({
-      setOperator: jest.fn(),
-      close: jest.fn(),
-    }),
-    forMainnet: jest.fn().mockReturnValue({
-      setOperator: jest.fn(),
-      close: jest.fn(),
-    }),
-  },
-  PrivateKey: {
-    fromString: jest.fn().mockReturnValue({
-      publicKey: {
-        toString: jest.fn().mockReturnValue('mock-public-key'),
-      },
-      toString: jest.fn().mockReturnValue('mock-private-key'),
-    }),
-    generate: jest.fn().mockReturnValue({
-      publicKey: {
-        toString: jest.fn().mockReturnValue('mock-public-key'),
-      },
-      toString: jest.fn().mockReturnValue('mock-private-key'),
-    }),
-  },
-  AccountId: {
-    fromString: jest.fn().mockReturnValue({
-      toString: jest.fn().mockReturnValue('0.0.123'),
-    }),
-  },
-  TopicId: {
-    fromString: jest.fn().mockReturnValue({
-      toString: jest.fn().mockReturnValue('0.0.456'),
-    }),
-  },
-  TopicCreateTransaction: jest.fn(),
-  TopicMessageSubmitTransaction: jest.fn(),
-  TopicMessageQuery: jest.fn(),
-  AccountCreateTransaction: jest.fn(),
-  TransferTransaction: jest.fn(),
-  Hbar: {
-    fromTinybars: jest.fn(),
-    from: jest.fn(),
-  },
-}));
-
-jest.mock('@hashgraphonline/standards-sdk', () => {
-  const actual = jest.requireActual('@hashgraphonline/standards-sdk');
-  return {
-    ...actual,
-    Logger: jest.fn().mockImplementation((options) => ({
-      info: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn(),
-    })),
-    HCS10Client: jest.fn().mockImplementation(() => ({
-      initialize: jest.fn(),
-      register: jest.fn(),
-      sendMessage: jest.fn(),
-      getMessages: jest.fn(),
-    })),
-    ConnectionsManager: jest.fn().mockImplementation(() => ({
-      updateOrAddConnection: jest.fn(),
-      getAllConnections: jest.fn().mockReturnValue([]),
-      getConnectionByTopicId: jest.fn(),
-      getConnectionByAccountId: jest.fn(),
-      clearAll: jest.fn(),
-    })),
-  };
-});
 
 jest.mock('@grpc/grpc-js', () => ({
   credentials: {
@@ -338,131 +267,141 @@ jest.mock('pino-pretty', () => {
   }));
 });
 
-// Mock hedera-agent-kit to fix import issues
-jest.mock('hedera-agent-kit', () => ({
-  BasePlugin: class MockBasePlugin {
-    constructor() {
-      this.context = null;
-    }
-    async initialize(context) {
-      this.context = context;
-    }
-    getTools() {
-      return [];
-    }
+// Add minimal @hashgraph/sdk mock to fix import issues without interfering with real tests
+jest.mock('@hashgraph/sdk', () => ({
+  Client: {
+    forTestnet: jest.fn().mockReturnValue({
+      setOperator: jest.fn(),
+      close: jest.fn(),
+    }),
+    forMainnet: jest.fn().mockReturnValue({
+      setOperator: jest.fn(),
+      close: jest.fn(),
+    }),
   },
-  PluginRegistry: class MockPluginRegistry {
-    constructor(context) {
-      this.context = context;
-      this.plugins = new Map();
-    }
-    async registerPlugin(plugin) {
-      if (this.plugins.has(plugin.id)) {
-        throw new Error(`Plugin with id '${plugin.id}' is already registered`);
-      }
-      await plugin.initialize(this.context);
-      this.plugins.set(plugin.id, plugin);
-      if (this.context.logger) {
-        this.context.logger.info(`Plugin registered: ${plugin.id}`);
-      }
-    }
-    async unregisterPlugin(pluginId) {
-      const plugin = this.plugins.get(pluginId);
-      if (!plugin) {
-        return false;
-      }
-      if (plugin.cleanup) {
-        try {
-          await plugin.cleanup();
-        } catch (error) {
-          if (this.context.logger) {
-            this.context.logger.error(`Error during plugin cleanup: ${error.message}`);
-          }
-        }
-      }
-      this.plugins.delete(pluginId);
-      if (this.context.logger) {
-        this.context.logger.info(`Plugin unregistered: ${pluginId}`);
-      }
-      return true;
-    }
-    async unregisterAllPlugins() {
-      for (const [, plugin] of this.plugins) {
-        if (plugin.cleanup) {
-          try {
-            await plugin.cleanup();
-          } catch (error) {
-            if (this.context.logger) {
-              this.context.logger.error(`Error during plugin cleanup: ${error.message}`);
-            }
-          }
-        }
-      }
-      this.plugins.clear();
-    }
-    getPlugin(pluginId) {
-      return this.plugins.get(pluginId);
-    }
-    getAllPlugins() {
-      return Array.from(this.plugins.values());
-    }
-    getAllTools() {
-      return this.getAllPlugins().flatMap(plugin => plugin.getTools());
-    }
+  PrivateKey: {
+    fromString: jest.fn().mockReturnValue({
+      publicKey: {
+        toString: jest.fn().mockReturnValue('mock-public-key'),
+      },
+      toString: jest.fn().mockReturnValue('mock-private-key'),
+    }),
+    generate: jest.fn().mockReturnValue({
+      publicKey: {
+        toString: jest.fn().mockReturnValue('mock-public-key'),
+      },
+      toString: jest.fn().mockReturnValue('mock-private-key'),
+    }),
   },
-  BaseHederaQueryTool: class MockBaseHederaQueryTool {
-    constructor(params) {
-      this.hederaKit = params.hederaKit;
-      this.logger = params.logger;
-    }
-    async execute(input) {
-      return 'mock result';
-    }
+  AccountId: {
+    fromString: jest.fn().mockReturnValue({
+      toString: jest.fn().mockReturnValue('0.0.123'),
+    }),
   },
-  HederaGetHbarPriceTool: class MockHederaGetHbarPriceTool {
-    constructor(params = {}) {
-      this.hederaKit = params.hederaKit || {};
-      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
-    }
-    name = 'get_hbar_price';
-    description = 'Get current HBAR price';
-    async execute() {
-      return 'Mock HBAR price result';
-    }
-    async call(input) {
-      return this.execute(input);
-    }
+  TopicId: {
+    fromString: jest.fn().mockReturnValue({
+      toString: jest.fn().mockReturnValue('0.0.456'),
+    }),
   },
-  HederaGetTokenInfoTool: class MockHederaGetTokenInfoTool {
-    constructor(params = {}) {
-      this.hederaKit = params.hederaKit || {};
-      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
-    }
-    name = 'get_token_info';
-    description = 'Get token information';
+  TopicCreateTransaction: jest.fn(),
+  TopicMessageSubmitTransaction: jest.fn(),
+  TopicMessageQuery: jest.fn(),
+  AccountCreateTransaction: jest.fn(),
+  TransferTransaction: jest.fn(),
+  TokenCreateTransaction: jest.fn(),
+  TokenAssociateTransaction: jest.fn(),
+  TokenMintTransaction: jest.fn(),
+  TokenSupplyType: {
+    Finite: 'FINITE',
+    Infinite: 'INFINITE',
   },
-  HederaTransferTokensTool: class MockHederaTransferTokensTool {
-    constructor(params = {}) {
-      this.hederaKit = params.hederaKit || {};
-      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
-    }
-    name = 'transfer_tokens';
-    description = 'Transfer tokens';
+  TokenType: {
+    FungibleCommon: 'FUNGIBLE_COMMON',
+    NonFungibleUnique: 'NON_FUNGIBLE_UNIQUE',
   },
-  HederaGetAccountTokensTool: class MockHederaGetAccountTokensTool {
-    constructor(params = {}) {
-      this.hederaKit = params.hederaKit || {};
-      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
-    }
-    name = 'get_account_tokens';
-    description = 'Get account tokens';
+  Hbar: {
+    fromTinybars: jest.fn(),
+    from: jest.fn(),
   },
-  HederaAssociateTokensTool: class MockHederaAssociateTokensTool {
-    constructor(params = {}) {
-      this.hederaKit = params.hederaKit || {};
-      this.logger = params.logger || { info: jest.fn(), error: jest.fn() };
-    }
-    name = 'associate_tokens';
-    description = 'Associate tokens';
+  Status: {
+    Success: 'SUCCESS',
+  },
+  Long: {
+    ZERO: { toString: () => '0' },
+    MAX_VALUE: { toString: () => '9223372036854775807' },
+    fromString: jest.fn((str) => ({ toString: () => str })),
+    fromNumber: jest.fn((num) => ({ toString: () => num.toString() })),
   },
 }));
+
+// Mock @hashgraphonline/standards-sdk to avoid version conflicts
+jest.mock('@hashgraphonline/standards-sdk', () => {
+  try {
+    const actual = jest.requireActual('@hashgraphonline/standards-sdk');
+    return {
+      ...actual,
+      Logger: jest.fn().mockImplementation((options) => ({
+        info: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+      })),
+      HCS10Client: jest.fn().mockImplementation(() => ({
+        initialize: jest.fn(),
+        register: jest.fn(),
+        sendMessage: jest.fn(),
+        getMessages: jest.fn(),
+      })),
+      ConnectionsManager: jest.fn().mockImplementation(() => ({
+        updateOrAddConnection: jest.fn(),
+        getAllConnections: jest.fn().mockReturnValue([]),
+        getConnectionByTopicId: jest.fn(),
+        getConnectionByAccountId: jest.fn(),
+        clearAll: jest.fn(),
+      })),
+    };
+  } catch (error) {
+    // Fallback if requireActual fails
+    return {
+      Logger: jest.fn().mockImplementation((options) => ({
+        info: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+      })),
+      HCS10Client: jest.fn().mockImplementation(() => ({
+        initialize: jest.fn(),
+        register: jest.fn(),
+        sendMessage: jest.fn(),
+        getMessages: jest.fn(),
+      })),
+      ConnectionsManager: jest.fn().mockImplementation(() => ({
+        updateOrAddConnection: jest.fn(),
+        getAllConnections: jest.fn().mockReturnValue([]),
+        getConnectionByTopicId: jest.fn(),
+        getConnectionByAccountId: jest.fn(),
+        clearAll: jest.fn(),
+      })),
+      NetworkType: { MAINNET: 'mainnet', TESTNET: 'testnet' },
+      HederaMirrorNode: jest.fn(),
+      HCS2RegistryType: { INDEXED: 'indexed', SEQUENTIAL: 'sequential' },
+      AIAgentCapability: {
+        TEXT_GENERATION: 'TEXT_GENERATION',
+        IMAGE_GENERATION: 'IMAGE_GENERATION',
+        AUDIO_GENERATION: 'AUDIO_GENERATION',
+        VIDEO_GENERATION: 'VIDEO_GENERATION',
+        CODE_GENERATION: 'CODE_GENERATION',
+        DATA_ANALYSIS: 'DATA_ANALYSIS',
+        TRANSLATION: 'TRANSLATION',
+        SUMMARIZATION: 'SUMMARIZATION',
+        QUESTION_ANSWERING: 'QUESTION_ANSWERING',
+        SENTIMENT_ANALYSIS: 'SENTIMENT_ANALYSIS',
+      },
+      InboundTopicType: {
+        DIRECT: 'DIRECT',
+        BROADCAST: 'BROADCAST',
+      },
+    };
+  }
+});
+

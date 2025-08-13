@@ -1,57 +1,23 @@
 import { z } from 'zod';
 import { BaseInscriberQueryTool } from './base-inscriber-tools';
-import { InscriptionOptions, ContentResolverRegistry } from '@hashgraphonline/standards-sdk';
+import { InscriptionOptions } from '@hashgraphonline/standards-sdk';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import { resolveContent } from '../../utils/content-resolver';
+import { contentRefSchema } from '../../validation/content-ref-schemas';
 import { loadConfig } from '../../config/ContentReferenceConfig';
 
 const inscribeFromBufferSchema = z.object({
-  base64Data: z
-    .string()
-    .min(1, 'Data cannot be empty')
-    .describe(
-      'The content to inscribe. Accept BOTH plain text AND base64. Also accepts content reference IDs in format "content-ref:[id]". When user says "inscribe it" or "inscribe the content", use the EXACT content from your previous message or from MCP tool results. DO NOT generate new content. DO NOT create repetitive text. Pass the actual search results or other retrieved content EXACTLY as you received it.'
-    ),
-  fileName: z
-    .string()
-    .min(1, 'File name cannot be empty')
-    .describe('Name for the inscribed content. Required for all inscriptions.'),
+  base64Data: z.union([z.string(), contentRefSchema])
+    .describe('Content to inscribe as base64 data, plain text, or content reference'),
+  fileName: z.string().min(1).describe('Name for the inscribed content'),
   mimeType: z.string().optional().describe('MIME type of the content'),
-  mode: z
-    .enum(['file', 'hashinal'])
-    .optional()
-    .describe('Inscription mode: file or hashinal NFT'),
-  metadata: z
-    .record(z.unknown())
-    .optional()
-    .describe('Metadata to attach to the inscription'),
-  tags: z
-    .array(z.string())
-    .optional()
-    .describe('Tags to categorize the inscription'),
-  chunkSize: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe('Chunk size for large files'),
-  waitForConfirmation: z
-    .boolean()
-    .optional()
-    .describe('Whether to wait for inscription confirmation'),
-  timeoutMs: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe(
-      'Timeout in milliseconds for inscription (default: no timeout - waits until completion)'
-    ),
+  metadata: z.record(z.unknown()).optional().describe('Metadata to attach'),
+  tags: z.array(z.string()).optional().describe('Tags to categorize the inscription'),
+  chunkSize: z.number().int().positive().optional().describe('Chunk size for large files'),
+  waitForConfirmation: z.boolean().optional().describe('Wait for inscription confirmation'),
+  timeoutMs: z.number().int().positive().optional().describe('Timeout in milliseconds'),
   apiKey: z.string().optional().describe('API key for inscription service'),
-  quoteOnly: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe('If true, returns a cost quote instead of executing the inscription'),
+  quoteOnly: z.boolean().optional().default(false).describe('Return cost quote only'),
 });
 
 export class InscribeFromBufferTool extends BaseInscriberQueryTool<
@@ -59,7 +25,7 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
 > {
   name = 'inscribeFromBuffer';
   description =
-    'Inscribe content that you have already retrieved or displayed. When user says "inscribe it" after you showed search results or other content, use THIS tool. The base64Data field accepts PLAIN TEXT (not just base64) and content reference IDs in format "content-ref:[id]". Pass the EXACT content from your previous response or MCP tool output. DO NOT generate new content or create repetitive text. Content references are automatically resolved to the original content for inscription. Set quoteOnly=true to get cost estimates without executing the inscription.';
+    'Inscribe content that you have already retrieved or displayed as standard file inscription (NOT for hashinal NFTs - use InscribeHashinalTool for NFTs). When user says "inscribe it" after you showed search results or other content, use THIS tool. The base64Data field accepts PLAIN TEXT (not just base64) and content reference IDs in format "content-ref:[id]". Pass the EXACT content from your previous response or MCP tool output. DO NOT generate new content or create repetitive text. Content references are automatically resolved to the original content for inscription. Set quoteOnly=true to get cost estimates without executing the inscription.';
 
   private config = loadConfig();
 
@@ -73,7 +39,7 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
   ): Promise<unknown> {
     this.validateInput(params);
 
-    const resolvedContent = await this.resolveContent(
+    const resolvedContent = await resolveContent(
       params.base64Data,
       params.mimeType,
       params.fileName
@@ -86,11 +52,13 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
     const resolvedFileName = resolvedContent.fileName || params.fileName;
 
     const options: InscriptionOptions = {
-      mode: params.mode,
+      mode: 'file',
       metadata: params.metadata,
       tags: params.tags,
       chunkSize: params.chunkSize,
-      waitForConfirmation: params.quoteOnly ? false : (params.waitForConfirmation ?? true),
+      waitForConfirmation: params.quoteOnly
+        ? false
+        : params.waitForConfirmation ?? true,
       waitMaxAttempts: 10,
       waitIntervalMs: 3000,
       apiKey: params.apiKey,
@@ -113,7 +81,7 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
           },
           options
         );
-        
+
         return {
           success: true,
           quote: {
@@ -126,17 +94,18 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
             mimeType: resolvedMimeType,
             sizeBytes: buffer.length,
           },
-          message: `Quote generated for buffer content: ${resolvedFileName} (${(buffer.length / 1024).toFixed(2)} KB)\nTotal cost: ${quote.totalCostHbar} HBAR\nQuote valid until: ${new Date(quote.validUntil).toLocaleString()}`,
+          message: `Estimated Quote for buffer content: ${resolvedFileName} (${(
+            buffer.length / 1024
+          ).toFixed(2)} KB)\nTotal cost: ${quote.totalCostHbar} HBAR`,
         };
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : 'Failed to generate inscription quote';
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate inscription quote';
         throw new Error(`Quote generation failed: ${errorMessage}`);
       }
     }
-
-    const timeoutMs =
-      params.timeoutMs || (options.waitForConfirmation ? 60000 : undefined);
 
     try {
       const result = await this.executeInscription(
@@ -144,7 +113,7 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
         resolvedFileName,
         resolvedMimeType,
         options,
-        timeoutMs
+        params.timeoutMs
       );
       return this.formatInscriptionResult(result, options);
     } catch (error) {
@@ -250,7 +219,8 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
     options: InscriptionOptions
   ): string {
     if (result.confirmed && !result.quote) {
-      const topicId = result.inscription?.topic_id || (result.result as any).topicId;
+      const topicId =
+        result.inscription?.topic_id || (result.result as any).topicId;
       const network = options.network || 'testnet';
       const cdnUrl = topicId
         ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}`
@@ -263,88 +233,12 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
     }
 
     if (!result.quote && !result.confirmed) {
-      return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${(result.result as any).transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
+      return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${
+        (result.result as any).transactionId
+      }\n\nThe inscription is processing and will be confirmed shortly.`;
     }
 
     return 'Inscription operation completed.';
   }
 
-  private async resolveContent(
-    input: string,
-    providedMimeType?: string,
-    providedFileName?: string
-  ): Promise<{
-    buffer: Buffer;
-    mimeType?: string;
-    fileName?: string;
-    wasReference?: boolean;
-  }> {
-    const trimmedInput = input.trim();
-    
-    const resolver = this.getContentResolver() || ContentResolverRegistry.getResolver();
-    
-    if (!resolver) {
-      return this.handleDirectContent(trimmedInput, providedMimeType, providedFileName);
-    }
-    
-    const referenceId = resolver.extractReferenceId(trimmedInput);
-
-    if (referenceId) {
-      try {
-        const resolution = await resolver.resolveReference(referenceId);
-
-        return {
-          buffer: resolution.content,
-          mimeType: resolution.metadata?.mimeType || providedMimeType,
-          fileName: resolution.metadata?.fileName || providedFileName,
-          wasReference: true,
-        };
-      } catch (error) {
-        const errorMsg =
-          error instanceof Error
-            ? error.message
-            : 'Unknown error resolving reference';
-        throw new Error(`Reference resolution failed: ${errorMsg}`);
-      }
-    }
-
-    return this.handleDirectContent(trimmedInput, providedMimeType, providedFileName);
-  }
-
-  private handleDirectContent(
-    input: string,
-    providedMimeType?: string,
-    providedFileName?: string
-  ): {
-    buffer: Buffer;
-    mimeType?: string;
-    fileName?: string;
-    wasReference?: boolean;
-  } {
-    const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(input);
-
-    if (isValidBase64) {
-      try {
-        const buffer = Buffer.from(input, 'base64');
-        return {
-          buffer,
-          mimeType: providedMimeType,
-          fileName: providedFileName,
-          wasReference: false,
-        };
-      } catch (error) {
-        throw new Error(
-          'Failed to decode base64 data. Please ensure the data is properly encoded.'
-        );
-      }
-    }
-
-    const buffer = Buffer.from(input, 'utf8');
-    return {
-      buffer,
-      mimeType: providedMimeType || 'text/plain',
-      fileName: providedFileName,
-      wasReference: false,
-    };
-  }
 }
