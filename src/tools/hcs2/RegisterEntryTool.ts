@@ -32,7 +32,7 @@ export class RegisterEntryTool extends BaseHCS2QueryTool<typeof registerEntrySch
   name = 'registerHCS2Entry';
   description = 'Register a new entry in an HCS-2 registry';
 
-  get specificInputSchema() {
+  get specificInputSchema(): typeof registerEntrySchema {
     return registerEntrySchema;
   }
 

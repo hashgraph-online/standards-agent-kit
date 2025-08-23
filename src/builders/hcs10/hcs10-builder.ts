@@ -137,8 +137,6 @@ export class HCS10Builder extends BaseServiceBuilder {
   private standardClient: HCS10Client;
   private stateManager: IStateManager | undefined;
   private executeResult?: ExecuteResult & { rawResult?: unknown };
-  private useEncryption: boolean = false;
-  private guardedRegistryBaseUrl: string = '';
   private network: StandardNetworkType;
   private sdkLogger: SDKLogger;
 
@@ -153,8 +151,6 @@ export class HCS10Builder extends BaseServiceBuilder {
   ) {
     super(hederaKit);
     this.stateManager = stateManager;
-    this.useEncryption = options?.useEncryption || false;
-    this.guardedRegistryBaseUrl = options?.registryUrl || '';
 
     const network = this.hederaKit.client.network;
     this.network = network.toString().includes('mainnet')

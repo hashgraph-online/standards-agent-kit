@@ -26,8 +26,8 @@ export type CreateDynamicRegistryInput = z.infer<typeof CreateDynamicRegistrySch
 export class CreateDynamicRegistryTool extends BaseHCS6QueryTool<typeof CreateDynamicRegistrySchema> {
   name = 'createDynamicRegistry';
   description = 'Create a new HCS-6 dynamic registry for managing evolving content';
-  
-  get specificInputSchema() {
+
+  get specificInputSchema(): typeof CreateDynamicRegistrySchema {
     return CreateDynamicRegistrySchema;
   }
 

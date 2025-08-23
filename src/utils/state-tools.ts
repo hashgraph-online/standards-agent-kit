@@ -125,8 +125,7 @@ export async function createAgent(
       client,
     };
   } catch (error) {
-    console.log('error', error, baseClient);
-    logger.error(`Error creating ${agentName} agent:`, error);
+    logger.error(`Error creating ${agentName} agent:`, error, { baseClient });
     return null;
   }
 }

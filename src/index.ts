@@ -2,6 +2,8 @@ export * from './tools';
 export * from './state';
 export * from './init';
 export * from './plugins';
+export * from './lib';
+export * from './interfaces';
 export { HCS10Builder, HCS2Builder, HCS6Builder, InscriberBuilder } from './builders';
 export type { ExecuteResult } from './builders';
 export { HCS10Client } from './hcs10';

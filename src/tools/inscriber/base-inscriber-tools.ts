@@ -60,21 +60,10 @@ export abstract class BaseInscriberTransactionTool<
     input: InscriptionInput,
     options: InscriptionOptions
   ): Promise<QuoteResult> {
-    const operatorId = this.inscriberBuilder['hederaKit'].signer.getAccountId().toString();
-    const operatorPrivateKey = this.inscriberBuilder['hederaKit'].signer?.getOperatorPrivateKey()
-      ? this.inscriberBuilder['hederaKit'].signer.getOperatorPrivateKey().toStringRaw()
-      : '';
-
     const network = this.inscriberBuilder['hederaKit'].client.network;
     const networkType = network.toString().includes('mainnet')
       ? 'mainnet'
       : 'testnet';
-
-    const clientConfig = {
-      accountId: operatorId,
-      privateKey: operatorPrivateKey,
-      network: networkType as 'mainnet' | 'testnet',
-    };
 
     const quoteOptions = {
       ...options,
@@ -83,7 +72,7 @@ export abstract class BaseInscriberTransactionTool<
     };
 
     const result = await this.inscriberBuilder.inscribe(input, quoteOptions);
-    
+
     if (!result.quote || result.confirmed) {
       throw new Error('Failed to generate quote - unexpected response type');
     }
@@ -136,21 +125,10 @@ export abstract class BaseInscriberQueryTool<
     input: InscriptionInput,
     options: InscriptionOptions
   ): Promise<QuoteResult> {
-    const operatorId = this.inscriberBuilder['hederaKit'].signer.getAccountId().toString();
-    const operatorPrivateKey = this.inscriberBuilder['hederaKit'].signer?.getOperatorPrivateKey()
-      ? this.inscriberBuilder['hederaKit'].signer.getOperatorPrivateKey().toStringRaw()
-      : '';
-
     const network = this.inscriberBuilder['hederaKit'].client.network;
     const networkType = network.toString().includes('mainnet')
       ? 'mainnet'
       : 'testnet';
-
-    const clientConfig = {
-      accountId: operatorId,
-      privateKey: operatorPrivateKey,
-      network: networkType as 'mainnet' | 'testnet',
-    };
 
     const quoteOptions = {
       ...options,
@@ -159,7 +137,7 @@ export abstract class BaseInscriberQueryTool<
     };
 
     const result = await this.inscriberBuilder.inscribe(input, quoteOptions);
-    
+
     if (!result.quote || result.confirmed) {
       throw new Error('Failed to generate quote - unexpected response type');
     }

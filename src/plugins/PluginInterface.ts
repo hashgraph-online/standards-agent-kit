@@ -1,4 +1,4 @@
-// Re-export plugin interfaces from hedera-agent-kit for consistency
+
 export { BasePlugin } from 'hedera-agent-kit';
 export type {
   IPlugin,
@@ -10,7 +10,6 @@ export type {
   HederaTool,
 } from 'hedera-agent-kit';
 
-// Extended context for HCS10-specific functionality
 import { HCS10Client } from '../hcs10/HCS10Client';
 import { IStateManager } from '../state/state-types';
 import { BasePluginContext } from 'hedera-agent-kit';

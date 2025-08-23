@@ -22,7 +22,7 @@ const FindRegistrationsZodSchema = z.object({
     ])
     .optional()
     .transform((val) => {
-      if (!val) return undefined;
+      if (!val) {return undefined;}
       if (typeof val === 'string') {
         return NaturalLanguageMapper.parseCapabilities(val);
       }

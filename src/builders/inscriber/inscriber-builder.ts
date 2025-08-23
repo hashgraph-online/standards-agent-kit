@@ -11,21 +11,14 @@ import {
   HederaClientConfig,
   NetworkType,
 } from '@hashgraphonline/standards-sdk';
+import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
 
 /**
- * Type definition for DAppSigner since we don't have the actual package
+ * Type definition for DAppSigner interface compatible with inscription SDK
  */
 interface DAppSigner {
   getAccountId(): { toString(): string };
-}
-
-/**
- * Type definition for InscriptionSDK since we don't have the actual package
- */
-interface InscriptionSDK {
-  inscribeAndExecute(request: any, config: any): Promise<any>;
-  inscribe(request: any, signer: any): Promise<any>;
-  waitForInscription(txId: string, maxAttempts: number, intervalMs: number, checkCompletion: boolean, progressCallback?: Function): Promise<any>;
+  [key: string]: unknown;
 }
 
 /**
@@ -42,7 +35,7 @@ export class InscriberBuilder extends BaseServiceBuilder {
    * Get or create Inscription SDK - temporarily returns null since we don't have the actual SDK
    */
   protected async getInscriptionSDK(
-    options: InscriptionOptions
+    _options: InscriptionOptions
   ): Promise<InscriptionSDK | null> {
     return null;
   }
@@ -81,7 +74,7 @@ export class InscriberBuilder extends BaseServiceBuilder {
     signer: DAppSigner,
     options: InscriptionOptions
   ): Promise<InscriptionResponse> {
-    return await inscribeWithSigner(input, signer as any, options);
+    return await inscribeWithSigner(input, signer as unknown as Parameters<typeof inscribeWithSigner>[1], options);
   }
 
   /**

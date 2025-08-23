@@ -1,9 +1,8 @@
-// src/utils/HederaClient.ts
+
 import { Client, AccountId, PrivateKey, TopicMessage, TopicMessageQuery } from '@hashgraph/sdk';
 import * as dotenv from 'dotenv';
 import { HCS10Message } from '../hcs10/types';
 
-// Load environment variables from .env file
 dotenv.config();
 
 /**

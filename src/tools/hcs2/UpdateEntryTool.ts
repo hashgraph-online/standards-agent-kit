@@ -36,7 +36,7 @@ export class UpdateEntryTool extends BaseHCS2QueryTool<typeof updateEntrySchema>
   name = 'updateHCS2Entry';
   description = 'Update an existing entry in an indexed HCS-2 registry';
 
-  get specificInputSchema() {
+  get specificInputSchema(): typeof updateEntrySchema {
     return updateEntrySchema;
   }
 

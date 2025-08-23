@@ -28,7 +28,7 @@ export class DeleteEntryTool extends BaseHCS2QueryTool<typeof deleteEntrySchema>
   name = 'deleteHCS2Entry';
   description = 'Delete an entry from an indexed HCS-2 registry';
 
-  get specificInputSchema() {
+  get specificInputSchema(): typeof deleteEntrySchema {
     return deleteEntrySchema;
   }
 

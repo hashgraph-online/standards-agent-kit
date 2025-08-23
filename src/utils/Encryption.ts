@@ -1,4 +1,4 @@
-// src/utils/Encryption.ts
+
 /**
  * Placeholder for encryption functionality.
  * Currently, encryption is disabled. The useEncryption flag is false by default.

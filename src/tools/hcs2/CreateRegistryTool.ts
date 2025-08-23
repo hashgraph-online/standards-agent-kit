@@ -34,7 +34,7 @@ export class CreateRegistryTool extends BaseHCS2QueryTool<typeof createRegistryS
   name = 'createHCS2Registry';
   description = 'Create a new HCS-2 registry topic for storing decentralized data';
 
-  get specificInputSchema() {
+  get specificInputSchema(): typeof createRegistrySchema {
     return createRegistrySchema;
   }
 

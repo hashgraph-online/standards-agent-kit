@@ -26,7 +26,7 @@ describe('HCS-10 Parameter Validation', () => {
       targetIdentifier: '0.0.123456',
       message: 'Test message'
     };
-    
+
     const result = SendMessageToConnectionZodSchema.parse(params);
     expect(result.targetIdentifier).toBe('0.0.123456');
     expect(result.message).toBe('Test message');
@@ -38,7 +38,7 @@ describe('HCS-10 Parameter Validation', () => {
       connectionId: '1',
       message: 'Test message'
     };
-    
+
     const result = SendMessageToConnectionZodSchema.parse(params);
     expect(result.connectionId).toBe('1');
     expect(result.message).toBe('Test message');
@@ -49,7 +49,7 @@ describe('HCS-10 Parameter Validation', () => {
       agentId: '0.0.789012',
       message: 'Test message'
     };
-    
+
     const result = SendMessageToConnectionZodSchema.parse(params);
     expect(result.agentId).toBe('0.0.789012');
     expect(result.message).toBe('Test message');
@@ -62,7 +62,7 @@ describe('HCS-10 Parameter Validation', () => {
       agentId: '0.0.222222',
       message: 'Test message'
     };
-    
+
     const result = SendMessageToConnectionZodSchema.parse(params);
     expect(result.targetIdentifier).toBe('0.0.111111');
     expect(result.connectionId).toBe('2');
@@ -76,7 +76,7 @@ describe('HCS-10 Parameter Validation', () => {
       message: 'Test message',
       disableMonitoring: true
     };
-    
+
     const result = SendMessageToConnectionZodSchema.parse(params);
     expect(result.disableMonitoring).toBe(true);
   });
@@ -85,7 +85,7 @@ describe('HCS-10 Parameter Validation', () => {
     const params = {
       targetIdentifier: '0.0.123456'
     } as any;
-    
+
     expect(() => SendMessageToConnectionZodSchema.parse(params)).toThrow();
   });
 
@@ -94,7 +94,7 @@ describe('HCS-10 Parameter Validation', () => {
       targetIdentifier: 'req-1:0.0.123@0.0.456',
       message: 'Test message'
     };
-    
+
     const result = SendMessageToConnectionZodSchema.parse(params);
     expect(result.targetIdentifier).toBe('req-1:0.0.123@0.0.456');
   });
@@ -102,16 +102,16 @@ describe('HCS-10 Parameter Validation', () => {
   it('should test parameter priority logic', () => {
     const params = {
       targetIdentifier: 'target123',
-      connectionId: 'conn456', 
+      connectionId: 'conn456',
       agentId: 'agent789',
       message: 'Test message'
     };
-    
+
     // Simulate the parameter selection logic from SendMessageToConnectionTool
-    const targetIdentifier = params.targetIdentifier || 
-                             params.agentId || 
+    const targetIdentifier = params.targetIdentifier ||
+                             params.agentId ||
                              params.connectionId;
-    
+
     expect(targetIdentifier).toBe('target123'); // targetIdentifier has priority
   });
 
@@ -121,24 +121,24 @@ describe('HCS-10 Parameter Validation', () => {
       connectionId: 'conn456',
       message: 'Test message'
     };
-    
+
     // Should use agentId when targetIdentifier is not present
-    const targetIdentifier1 = params1.targetIdentifier || 
-                              params1.agentId || 
+    const targetIdentifier1 = params1.targetIdentifier ||
+                              params1.agentId ||
                               params1.connectionId;
-    
+
     expect(targetIdentifier1).toBe('agent789');
 
     const params2 = {
       connectionId: 'conn456',
       message: 'Test message'
     };
-    
+
     // Should use connectionId when neither targetIdentifier nor agentId are present
-    const targetIdentifier2 = params2.targetIdentifier || 
-                              params2.agentId || 
+    const targetIdentifier2 = params2.targetIdentifier ||
+                              params2.agentId ||
                               params2.connectionId;
-    
+
     expect(targetIdentifier2).toBe('conn456');
   });
 
@@ -146,13 +146,13 @@ describe('HCS-10 Parameter Validation', () => {
     const params = {
       message: 'Test message'
     };
-    
-    const targetIdentifier = params.targetIdentifier || 
-                             params.agentId || 
+
+    const targetIdentifier = params.targetIdentifier ||
+                             params.agentId ||
                              params.connectionId;
-    
+
     expect(targetIdentifier).toBeUndefined();
-    
+
     // This should trigger the error in the actual tool
     if (!targetIdentifier) {
       expect(() => {

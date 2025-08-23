@@ -52,7 +52,7 @@ const RegisterAgentZodSchema = z.object({
     ])
     .optional()
     .transform((val) => {
-      if (!val) return undefined;
+      if (!val) {return undefined;}
       if (typeof val === 'string') {
         return NaturalLanguageMapper.parseCapabilities(val);
       }
@@ -69,7 +69,7 @@ const RegisterAgentZodSchema = z.object({
     ])
     .optional()
     .transform((val) => {
-      if (!val) return undefined;
+      if (!val) {return undefined;}
       if (typeof val === 'string') {
         return NaturalLanguageMapper.parseCapabilities(val);
       }
@@ -203,7 +203,7 @@ export class RegisterAgentTool extends BaseHCS10TransactionTool<
     if (specificArgs.model !== undefined) {
       params.model = specificArgs.model;
     }
-    // Handle both capabilities and tags (tags takes precedence if both provided)
+
     if (specificArgs.tags !== undefined) {
       params.capabilities = specificArgs.tags as AIAgentCapability[];
     } else if (specificArgs.capabilities !== undefined) {

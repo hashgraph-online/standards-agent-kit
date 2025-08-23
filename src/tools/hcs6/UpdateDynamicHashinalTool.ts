@@ -32,7 +32,7 @@ export type UpdateDynamicHashinalInput = z.infer<typeof UpdateDynamicHashinalSch
 export class UpdateDynamicHashinalTool extends BaseHCS6QueryTool<typeof UpdateDynamicHashinalSchema> {
   name = 'updateDynamicHashinal';
   description = 'Update an existing dynamic hashinal with new content while maintaining the same registry';
-  
+
   get specificInputSchema() {
     return UpdateDynamicHashinalSchema;
   }
@@ -45,7 +45,7 @@ export class UpdateDynamicHashinalTool extends BaseHCS6QueryTool<typeof UpdateDy
     params: UpdateDynamicHashinalInput,
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
-    // Use the register method with the existing registry ID to update
+
     const result = await this.hcs6Builder.register({
       metadata: params.metadata,
       data: params.data,

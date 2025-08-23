@@ -71,21 +71,12 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
     params: z.infer<typeof inscribeFromFileSchema>,
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
-    console.log(
-      `[DEBUG] InscribeFromFileTool.executeQuery called with: ${params.filePath}`
-    );
-
     let fileContent: Buffer;
     try {
-      console.log(`[DEBUG] Checking file: ${params.filePath}`);
-      console.log(`[DEBUG] Current working directory: ${process.cwd()}`);
-
       const stats = await fs.stat(params.filePath);
       if (!stats.isFile()) {
         throw new Error(`Path "${params.filePath}" is not a file`);
       }
-
-      console.log(`[DEBUG] File size: ${stats.size} bytes`);
 
       if (stats.size === 0) {
         throw new Error(
@@ -100,8 +91,8 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
       }
 
       if (stats.size > 100 * 1024 * 1024) {
-        console.log(
-          `[InscribeFromFileTool] WARNING: Large file detected (${(
+        this.logger?.warn(
+          `Large file detected (${(
             stats.size /
             (1024 * 1024)
           ).toFixed(2)} MB)`

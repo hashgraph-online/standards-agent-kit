@@ -3,6 +3,9 @@ import { BaseHCS10TransactionTool } from './base-hcs10-tools';
 import { HCS10Builder } from '../../builders/hcs10/hcs10-builder';
 import { HCS10TransactionToolParams } from './hcs10-tool-params';
 import { BaseServiceBuilder } from 'hedera-agent-kit';
+import { Logger } from '@hashgraphonline/standards-sdk';
+
+const logger = new Logger({ module: 'SendMessageToConnectionTool' });
 
 const SendMessageToConnectionZodSchema = z.object({
   targetIdentifier: z
@@ -70,7 +73,7 @@ export class SendMessageToConnectionTool extends BaseHCS10TransactionTool<
             );
           }
         } catch (error) {
-          console.debug('Could not refresh connections:', error);
+          logger.debug('Could not refresh connections:', error);
         }
       }
 

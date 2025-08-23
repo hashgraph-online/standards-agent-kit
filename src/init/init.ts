@@ -73,13 +73,19 @@ export const initializeStandardsAgentKit = async (
 
   const networkEnv = config.network || process.env.HEDERA_NETWORK || 'testnet';
 
+  const shouldSilence = process.env.DISABLE_LOGGING === 'true';
+  const logger = Logger.getInstance({
+    level: config.logLevel || 'info',
+    silent: shouldSilence,
+  });
+
   let network: 'mainnet' | 'testnet';
   if (networkEnv === 'mainnet') {
     network = 'mainnet';
   } else if (networkEnv === 'testnet') {
     network = 'testnet';
   } else {
-    console.warn(
+    logger.warn(
       `Unsupported network specified: '${networkEnv}'. Defaulting to 'testnet'.`
     );
     network = 'testnet';
@@ -91,12 +97,6 @@ export const initializeStandardsAgentKit = async (
     );
   }
 
-  const shouldSilence = process.env.DISABLE_LOGGING === 'true';
-  const logger = Logger.getInstance({
-    level: config.logLevel || 'info',
-    silent: shouldSilence,
-  });
-
   const stateManager =
     options?.stateManager ||
     new OpenConvaiState({
@@ -105,13 +105,11 @@ export const initializeStandardsAgentKit = async (
     });
   logger.info('State manager initialized');
 
-  // Create HederaAgentKit
   const signer = new ServerSigner(operatorId, operatorPrivateKey, network);
   const hederaKit = new HederaAgentKit(signer);
   await hederaKit.initialize();
   logger.info(`HederaAgentKit initialized for ${operatorId} on ${network}`);
 
-  // Create HCS10Builder
   const hcs10Builder = new HCS10Builder(hederaKit, stateManager, {
     useEncryption: config.useEncryption,
     registryUrl: config.registryUrl,
@@ -135,7 +133,6 @@ export const initializeStandardsAgentKit = async (
 
   const tools: Partial<HCS10Tools> = {};
 
-  // Always create RegisterAgentTool
   tools.registerAgentTool = new RegisterAgentTool({
     hederaKit,
     hcs10Builder,

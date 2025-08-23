@@ -36,7 +36,7 @@ describe('HCS-2 Tools', () => {
 
   describe('CreateRegistryTool', () => {
     it('should create an indexed registry successfully', async () => {
-      const tool = new CreateRegistryTool({ 
+      const tool = new CreateRegistryTool({
         hcs2Builder: mockHCS2Builder,
         hederaKit: mockHederaKit,
         logger: mockLogger
@@ -64,7 +64,7 @@ describe('HCS-2 Tools', () => {
     });
 
     it('should handle creation errors', async () => {
-      const tool = new CreateRegistryTool({ 
+      const tool = new CreateRegistryTool({
         hcs2Builder: mockHCS2Builder,
         hederaKit: mockHederaKit,
         logger: mockLogger
@@ -84,7 +84,7 @@ describe('HCS-2 Tools', () => {
 
   describe('RegisterEntryTool', () => {
     it('should register an entry successfully', async () => {
-      const tool = new RegisterEntryTool({ 
+      const tool = new RegisterEntryTool({
         hcs2Builder: mockHCS2Builder,
         hederaKit: mockHederaKit,
         logger: mockLogger
@@ -117,7 +117,7 @@ describe('HCS-2 Tools', () => {
 
   describe('QueryRegistryTool', () => {
     it('should query registry entries successfully', async () => {
-      const tool = new QueryRegistryTool({ 
+      const tool = new QueryRegistryTool({
         hcs2Builder: mockHCS2Builder,
         hederaKit: mockHederaKit,
         logger: mockLogger
@@ -163,7 +163,7 @@ describe('HCS-2 Tools', () => {
 
   describe('UpdateEntryTool', () => {
     it('should update an entry successfully', async () => {
-      const tool = new UpdateEntryTool({ 
+      const tool = new UpdateEntryTool({
         hcs2Builder: mockHCS2Builder,
         hederaKit: mockHederaKit,
         logger: mockLogger
@@ -191,7 +191,7 @@ describe('HCS-2 Tools', () => {
 
   describe('DeleteEntryTool', () => {
     it('should delete an entry successfully', async () => {
-      const tool = new DeleteEntryTool({ 
+      const tool = new DeleteEntryTool({
         hcs2Builder: mockHCS2Builder,
         hederaKit: mockHederaKit,
         logger: mockLogger
@@ -218,7 +218,7 @@ describe('HCS-2 Tools', () => {
 
   describe('MigrateRegistryTool', () => {
     it('should migrate registry successfully', async () => {
-      const tool = new MigrateRegistryTool({ 
+      const tool = new MigrateRegistryTool({
         hcs2Builder: mockHCS2Builder,
         hederaKit: mockHederaKit,
         logger: mockLogger

@@ -9,11 +9,22 @@ export function generateDefaultMetadata(params: {
   fileName?: string;
   mimeType?: string;
   operatorAccount: string;
-}) {
+}): {
+  name: string;
+  creator: string;
+  description: string;
+  type: string;
+  image: string;
+} {
   const defaultName = params.fileName?.replace(/\.[^/.]+$/, '') || 'Hashinal NFT';
-  const defaultType = params.mimeType?.startsWith('image/') ? 'image' : 
-                      params.mimeType?.startsWith('video/') ? 'video' :
-                      params.mimeType?.startsWith('audio/') ? 'audio' : 'media';
+  let defaultType = 'media';
+  if (params.mimeType?.startsWith('image/')) {
+    defaultType = 'image';
+  } else if (params.mimeType?.startsWith('video/')) {
+    defaultType = 'video';
+  } else if (params.mimeType?.startsWith('audio/')) {
+    defaultType = 'audio';
+  }
 
   return {
     name: params.name || defaultName,

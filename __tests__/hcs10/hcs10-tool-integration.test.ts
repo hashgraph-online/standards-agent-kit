@@ -189,7 +189,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
         'req-1:0.0.111@0.0.123456',
         mockConnections
       );
-      
+
       expect(connection).not.toBeNull();
       expect(connection!.targetAccountId).toBe('0.0.123456');
       expect(connection!.connectionId).toBe('conn-1');
@@ -200,7 +200,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
         '0.0.789012',
         mockConnections
       );
-      
+
       expect(connection).not.toBeNull();
       expect(connection!.targetAccountId).toBe('0.0.789012');
     });
@@ -210,7 +210,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
         '0.0.444444',
         mockConnections
       );
-      
+
       expect(connection).not.toBeNull();
       expect(connection!.connectionTopicId).toBe('0.0.444444');
     });
@@ -220,7 +220,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
         'conn-1',
         mockConnections
       );
-      
+
       expect(connection).not.toBeNull();
       expect(connection!.connectionId).toBe('conn-1');
     });
@@ -230,7 +230,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
         '123456',
         mockConnections
       );
-      
+
       expect(connection).not.toBeNull();
       expect(connection!.targetAccountId).toBe('0.0.123456');
     });
@@ -241,7 +241,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
       expect(connection1!.targetAccountId).toBe('0.0.123456');
 
       const connection2 = findConnectionWithStrategies('2', mockConnections);
-      expect(connection2).not.toBeNull();  
+      expect(connection2).not.toBeNull();
       expect(connection2!.targetAccountId).toBe('0.0.789012');
     });
 
@@ -250,7 +250,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
         'non-existent',
         mockConnections
       );
-      
+
       expect(connection).toBeNull();
     });
 
@@ -289,7 +289,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
           connectionTopicId: '0.0.222222',
         },
         {
-          connectionId: 'conn-2', 
+          connectionId: 'conn-2',
           targetAccountId: '0.0.789012',
           connectionTopicId: '0.0.444444',
         },
@@ -329,7 +329,7 @@ describe('HCS-10 Tool Parameter Integration', () => {
     it('should handle the original error scenario', () => {
       // Simulate the original error: conversational-agent sends connectionId
       // but SendMessageToConnectionTool only accepted targetIdentifier
-      
+
       const originalArgs = {
         connectionId: '1',
         message: 'This used to cause "Sorry, I encountered an error"'
@@ -382,10 +382,10 @@ describe('HCS-10 Tool Parameter Integration', () => {
       ];
 
       scenarios.forEach(scenario => {
-        const result = scenario.args.targetIdentifier || 
-                      scenario.args.agentId || 
+        const result = scenario.args.targetIdentifier ||
+                      scenario.args.agentId ||
                       scenario.args.connectionId;
-        
+
         expect(result).toBe(scenario.expected);
       });
     });

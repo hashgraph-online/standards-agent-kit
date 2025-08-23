@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { BaseInscriberQueryTool } from './base-inscriber-tools';
-import { InscriptionOptions } from '@hashgraphonline/standards-sdk';
+import { InscriptionOptions, Logger } from '@hashgraphonline/standards-sdk';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+
+const logger = new Logger({ module: 'InscribeFromUrlTool' });
 
 /**
  * Schema for inscribing from URL
@@ -71,9 +73,7 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<
     params: z.infer<typeof inscribeFromUrlSchema>,
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
-    console.log(
-      `[DEBUG] InscribeFromUrlTool.executeQuery called with URL: ${params.url}`
-    );
+    logger.debug(`InscribeFromUrlTool.executeQuery called with URL: ${params.url}`);
 
     if (!params.url || params.url.trim() === '') {
       throw new Error('URL cannot be empty. Please provide a valid URL.');
@@ -103,9 +103,7 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<
       );
     }
 
-    console.log(
-      `[InscribeFromUrlTool] Validating URL content before inscription...`
-    );
+    logger.info('Validating URL content before inscription...');
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -156,9 +154,7 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<
         }
 
         if (!contentType || contentType === 'application/octet-stream') {
-          console.log(
-            `[InscribeFromUrlTool] Content-Type unclear, fetching first 1KB to verify...`
-          );
+          logger.info('Content-Type unclear, fetching first 1KB to verify...');
 
           const getController = new AbortController();
           const getTimeoutId = setTimeout(() => getController.abort(), 5000);
@@ -174,7 +170,7 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<
             clearTimeout(getTimeoutId);
 
             if (getResponse.ok || getResponse.status === 206) {
-              // 206 is partial content
+
               const buffer = await getResponse.arrayBuffer();
               const bytes = new Uint8Array(buffer);
               const text = new TextDecoder('utf-8', { fatal: false }).decode(
@@ -200,16 +196,16 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<
             ) {
               throw getError;
             }
-            console.log(
-              `[InscribeFromUrlTool] Could not perform partial GET validation: ${
+            logger.warn(
+              `Could not perform partial GET validation: ${
                 getError instanceof Error ? getError.message : 'Unknown error'
               }`
             );
           }
         }
 
-        console.log(
-          `[InscribeFromUrlTool] URL validation passed. Content-Type: ${contentType}, Content-Length: ${
+        logger.info(
+          `URL validation passed. Content-Type: ${contentType}, Content-Length: ${
             contentLength || 'unknown'
           }`
         );
@@ -220,8 +216,8 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          console.log(
-            `[InscribeFromUrlTool] Warning: URL validation timed out after 10 seconds. Proceeding with inscription attempt.`
+          logger.warn(
+            'URL validation timed out after 10 seconds. Proceeding with inscription attempt.'
           );
         } else if (
           error.message.includes('URL returned error') ||
@@ -231,8 +227,8 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<
         ) {
           throw error;
         } else {
-          console.log(
-            `[InscribeFromUrlTool] Warning: Could not validate URL with HEAD request: ${error.message}. Proceeding with inscription attempt.`
+          logger.warn(
+            `Could not validate URL with HEAD request: ${error.message}. Proceeding with inscription attempt.`
           );
         }
       }

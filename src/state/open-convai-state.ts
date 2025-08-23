@@ -43,7 +43,6 @@ export class OpenConvaiState implements IStateManager {
     const shouldSilence = options?.disableLogging || process.env.DISABLE_LOGGING === 'true';
     this.logger = new Logger({ module: 'OpenConvaiState', silent: shouldSilence });
 
-    // Initialize ConnectionsManager immediately if baseClient is provided
     if (options?.baseClient) {
       this.initializeConnectionsManager(options.baseClient);
     }
@@ -84,7 +83,6 @@ export class OpenConvaiState implements IStateManager {
     this.currentAgent = agent;
     this.connectionMessageTimestamps = {};
 
-    // Clear connections manager when changing agents
     if (this.connectionsManager) {
       this.connectionsManager.clearAll();
     }
@@ -112,7 +110,6 @@ export class OpenConvaiState implements IStateManager {
       );
     }
 
-    // Convert from ActiveConnection to Connection
     const sdkConnection: Connection = {
       connectionTopicId: connection.connectionTopicId,
       targetAccountId: connection.targetAccountId,
@@ -128,10 +125,8 @@ export class OpenConvaiState implements IStateManager {
       processed: true,
     };
 
-    // Add to ConnectionsManager
     this.connectionsManager.updateOrAddConnection(sdkConnection);
 
-    // Initialize timestamp tracking
     this.initializeTimestampIfNeeded(connection.connectionTopicId);
   }
 
@@ -154,7 +149,6 @@ export class OpenConvaiState implements IStateManager {
       return [];
     }
 
-    // Convert SDK Connections to ActiveConnection
     return this.connectionsManager
       .getAllConnections()
       .map((conn) => this.convertToActiveConnection(conn));
@@ -173,7 +167,6 @@ export class OpenConvaiState implements IStateManager {
 
     const connections = this.listConnections();
 
-    // Check if it's a 1-based index
     const numericIndex = parseInt(identifier) - 1;
     if (
       !isNaN(numericIndex) &&
@@ -183,14 +176,12 @@ export class OpenConvaiState implements IStateManager {
       return connections[numericIndex];
     }
 
-    // Check if it's a topic ID
     const byTopicId =
       this.connectionsManager.getConnectionByTopicId(identifier);
     if (byTopicId) {
       return this.convertToActiveConnection(byTopicId);
     }
 
-    // Check if it's an account ID
     const byAccountId =
       this.connectionsManager.getConnectionByAccountId(identifier);
     if (byAccountId) {
@@ -213,13 +204,12 @@ export class OpenConvaiState implements IStateManager {
    * but only if the new timestamp is more recent than the existing one.
    */
   updateTimestamp(connectionTopicId: string, timestampNanos: number): void {
-    // Initialize if this is first update and skip the comparison logic
+
     if (!(connectionTopicId in this.connectionMessageTimestamps)) {
       this.connectionMessageTimestamps[connectionTopicId] = timestampNanos;
       return;
     }
 
-    // Otherwise, only update if newer
     const currentTimestamp =
       this.connectionMessageTimestamps[connectionTopicId];
     if (timestampNanos > currentTimestamp) {

@@ -15,6 +15,26 @@ const retrieveInscriptionSchema = z.object({
     .describe('API key for inscription service'),
 });
 
+/**
+ * Type definition for inscription retrieval result
+ */
+interface InscriptionRetrievalResult {
+  inscriptionId?: string;
+  transactionId: string;
+  topicId?: string;
+  status?: string;
+  holderId?: string;
+  metadata?: unknown;
+  tags?: unknown;
+  mode?: string;
+  chunks?: unknown;
+  createdAt?: string;
+  completedAt?: string;
+  fileUrl?: string;
+  mimeType?: string;
+  fileSize?: number;
+}
+
 
 /**
  * Tool for retrieving inscriptions
@@ -30,7 +50,7 @@ export class RetrieveInscriptionTool extends BaseInscriberQueryTool<typeof retri
   protected async executeQuery(
     params: z.infer<typeof retrieveInscriptionSchema>,
     _runManager?: CallbackManagerForToolRun
-  ): Promise<unknown> {
+  ): Promise<InscriptionRetrievalResult> {
     const result = await this.inscriberBuilder.retrieveInscription(
       params.transactionId,
       {
@@ -39,21 +59,23 @@ export class RetrieveInscriptionTool extends BaseInscriberQueryTool<typeof retri
       }
     );
 
+    const typedResult = result as unknown as Record<string, unknown>;
+
     return {
-      inscriptionId: (result as any).inscriptionId,
-      transactionId: result.transactionId,
-      topicId: (result as any).topic_id,
-      status: result.status,
-      holderId: (result as any).holderId,
+      inscriptionId: typedResult.inscriptionId as string | undefined,
+      transactionId: result.transactionId || 'unknown',
+      topicId: typedResult.topic_id as string | undefined,
+      status: result.status || 'unknown',
+      holderId: typedResult.holderId as string | undefined,
       metadata: result.metadata,
-      tags: (result as any).tags,
+      tags: typedResult.tags,
       mode: result.mode,
-      chunks: (result as any).chunks,
-      createdAt: (result as any).createdAt,
-      completedAt: (result as any).completed || (result as any).completedAt,
+      chunks: typedResult.chunks,
+      createdAt: typedResult.createdAt as string | undefined,
+      completedAt: (typedResult.completed || typedResult.completedAt) as string | undefined,
       fileUrl: result.fileUrl,
-      mimeType: (result as any).mimeType,
-      fileSize: (result as any).fileSize,
+      mimeType: typedResult.mimeType as string | undefined,
+      fileSize: typedResult.fileSize as number | undefined,
     };
   }
 }

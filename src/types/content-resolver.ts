@@ -1,11 +1,11 @@
 /**
  * Content Resolver Types
- * 
+ *
  * Re-export types from standards-sdk for content resolution.
  */
 
-export type { 
+export type {
   ContentResolverInterface,
   ReferenceResolutionResult,
-  ContentStoreInterface 
+  ContentStoreInterface
 } from '@hashgraphonline/standards-sdk';

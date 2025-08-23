@@ -17,7 +17,6 @@ import { AgentMetadata, AgentChannels } from './types';
 import { encryptMessage } from '../utils/Encryption';
 import { IStateManager } from '../state/state-types';
 
-// Keep type alias as they were removed accidentally
 type StandardHandleConnectionRequest = InstanceType<
   typeof StandardSDKClient
 >['handleConnectionRequest'];
@@ -444,13 +443,11 @@ export class HCS10Client {
     error?: string;
   }> {
     try {
-      // Set up client with provided operator details
+
       this.setClient(options.accountId, options.privateKey);
 
-      // Check if we can retrieve the operator ID
       const operatorId = this.getOperatorId();
 
-      // If we got this far, basic validation passed
       return {
         isValid: true,
         operator: { accountId: operatorId },
@@ -472,7 +469,7 @@ export class HCS10Client {
     const validationResult = await this.validateOperator(options);
 
     if (validationResult.isValid) {
-      // If we have access to the state manager, initialize its connections manager
+
       if (options.stateManager) {
         options.stateManager.initializeConnectionsManager(this.standardClient);
       }

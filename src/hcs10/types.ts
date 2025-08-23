@@ -1,4 +1,3 @@
-// src/hcs10/types.ts
 
 import { FeeConfigBuilderInterface } from '@hashgraphonline/standards-sdk';
 
@@ -25,7 +24,7 @@ export interface AgentMetadata {
 export interface AgentChannels {
     inboundTopicId: string;
     outboundTopicId: string;
-    // Future: additional connection topics can be added.
+
 }
 
 /**
@@ -39,16 +38,3 @@ export interface HCS10Message {
     messageId: string;
     metadata?: Record<string, unknown>;
 }
-
-// export interface AgentRegistration {
-//     id: string;
-//     name: string;
-//     capabilities: string[];
-//     createdAt: number;
-//     publicKey: string;
-// }
-
-// export interface HCS10Config {
-//     topicId: string;
-//     network: 'mainnet' | 'testnet' | 'previewnet';
-// }

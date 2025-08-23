@@ -30,7 +30,7 @@ export type QueryDynamicRegistryInput = z.infer<typeof QueryDynamicRegistrySchem
 export class QueryDynamicRegistryTool extends BaseHCS6QueryTool<typeof QueryDynamicRegistrySchema> {
   name = 'queryDynamicRegistry';
   description = 'Query a dynamic registry to get the current state of a dynamic hashinal';
-  
+
   get specificInputSchema() {
     return QueryDynamicRegistrySchema;
   }

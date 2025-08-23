@@ -30,7 +30,7 @@ describe('HCS-6 Tools', () => {
     } as any;
 
     mockLogger = new Logger({ module: 'HCS6-Test' });
-    
+
     // Mock PrivateKey methods
     jest.spyOn(PrivateKey, 'generate').mockReturnValue({
       toStringRaw: () => 'mock-private-key',

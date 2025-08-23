@@ -1,4 +1,4 @@
-// Re-export the HBAR price tool from hedera-agent-kit
+
 export { HederaGetHbarPriceTool as GetHbarPriceTool } from 'hedera-agent-kit';
 
 import { BasePlugin, GenericPluginContext, HederaTool, HederaAgentKit } from 'hedera-agent-kit';

@@ -1,8 +1,10 @@
-import { BasePlugin, GenericPluginContext, BaseHederaQueryTool, HederaTool, HederaAgentKit } from 'hedera-agent-kit';
+import { BasePlugin, GenericPluginContext, BaseHederaQueryTool, HederaTool, HederaAgentKit, BasePluginContext } from 'hedera-agent-kit';
 import { z } from 'zod';
 import axios from 'axios';
 
-// Define a more specific type for the forecast day data
+/**
+ * Type definition for forecast day data from weather API
+ */
 interface ForecastDayData {
   date: string;
   day: {
@@ -12,6 +14,15 @@ interface ForecastDayData {
       text: string;
     };
   };
+}
+
+/**
+ * Type definition for weather tool constructor parameters
+ */
+interface WeatherToolParams {
+  hederaKit: HederaAgentKit;
+  logger?: BasePluginContext['logger'];
+  apiKey?: string;
 }
 
 /**
@@ -38,7 +49,7 @@ class GetCurrentWeatherTool extends BaseHederaQueryTool<typeof GetCurrentWeather
   specificInputSchema = GetCurrentWeatherSchema;
   namespace = 'weather';
 
-  constructor(params: { hederaKit: HederaAgentKit; logger?: any; apiKey?: string }) {
+  constructor(params: WeatherToolParams) {
     super(params);
     this.apiKey = params.apiKey;
   }
@@ -99,7 +110,7 @@ class GetWeatherForecastTool extends BaseHederaQueryTool<typeof GetWeatherForeca
   specificInputSchema = GetWeatherForecastSchema;
   namespace = 'weather';
 
-  constructor(params: { hederaKit: HederaAgentKit; logger?: any; apiKey?: string }) {
+  constructor(params: WeatherToolParams) {
     super(params);
     this.apiKey = params.apiKey;
   }

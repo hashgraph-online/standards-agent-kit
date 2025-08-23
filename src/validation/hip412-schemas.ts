@@ -39,7 +39,7 @@ export const hip412MetadataSchema = z.object({
 /**
  * Validates metadata against HIP-412 standard
  */
-export function validateHIP412Metadata(metadata: any): z.infer<typeof hip412MetadataSchema> {
+export function validateHIP412Metadata(metadata: unknown): z.infer<typeof hip412MetadataSchema> {
   try {
     return hip412MetadataSchema.parse(metadata);
   } catch (error) {

@@ -38,7 +38,7 @@ export type RegisterDynamicHashinalInput = z.infer<typeof RegisterDynamicHashina
 export class RegisterDynamicHashinalTool extends BaseHCS6QueryTool<typeof RegisterDynamicHashinalSchema> {
   name = 'registerDynamicHashinal';
   description = 'Create and register a new dynamic hashinal that can be updated over time';
-  
+
   get specificInputSchema() {
     return RegisterDynamicHashinalSchema;
   }
