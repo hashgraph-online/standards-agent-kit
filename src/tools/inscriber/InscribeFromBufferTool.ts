@@ -59,8 +59,8 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
       waitForConfirmation: params.quoteOnly
         ? false
         : params.waitForConfirmation ?? true,
-      waitMaxAttempts: 10,
-      waitIntervalMs: 3000,
+      waitMaxAttempts: 60,
+      waitIntervalMs: 5000,
       apiKey: params.apiKey,
       network: this.inscriberBuilder['hederaKit'].client.network
         .toString()

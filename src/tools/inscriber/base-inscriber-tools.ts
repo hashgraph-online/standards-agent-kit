@@ -17,6 +17,16 @@ import {
 import { z } from 'zod';
 
 /**
+ * Event emitted when an entity is created during inscription
+ */
+export interface EntityCreationEvent {
+  entityId: string;
+  entityName: string;
+  entityType: string;
+  transactionId?: string;
+}
+
+/**
  * Base class for Inscriber transaction tools
  */
 export abstract class BaseInscriberTransactionTool<
@@ -28,6 +38,7 @@ export abstract class BaseInscriberTransactionTool<
 > extends BaseHederaTransactionTool<T> {
   protected inscriberBuilder: InscriberBuilder;
   protected contentResolver: ContentResolverInterface | null;
+  protected onEntityCreated?: (event: EntityCreationEvent) => void;
   namespace = 'inscriber' as const;
 
   constructor(params: InscriberTransactionToolParams) {
@@ -48,6 +59,13 @@ export abstract class BaseInscriberTransactionTool<
    */
   protected getContentResolver(): ContentResolverInterface | null {
     return this.contentResolver;
+  }
+
+  /**
+   * Set entity creation handler for automatic entity storage
+   */
+  setEntityCreationHandler(handler: (event: EntityCreationEvent) => void): void {
+    this.onEntityCreated = handler;
   }
 
   /**
@@ -93,6 +111,7 @@ export abstract class BaseInscriberQueryTool<
 > extends BaseHederaQueryTool<T> {
   protected inscriberBuilder: InscriberBuilder;
   protected contentResolver: ContentResolverInterface | null;
+  protected onEntityCreated?: (event: EntityCreationEvent) => void;
   namespace = 'inscriber' as const;
 
   constructor(params: InscriberQueryToolParams) {
@@ -113,6 +132,13 @@ export abstract class BaseInscriberQueryTool<
    */
   protected getContentResolver(): ContentResolverInterface | null {
     return this.contentResolver;
+  }
+
+  /**
+   * Set entity creation handler for automatic entity storage
+   */
+  setEntityCreationHandler(handler: (event: EntityCreationEvent) => void): void {
+    this.onEntityCreated = handler;
   }
 
   /**

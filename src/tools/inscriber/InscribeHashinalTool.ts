@@ -15,7 +15,6 @@ import {
   extendZodSchema,
   renderConfigs,
 } from '../../lib/zod-render/schema-extension';
-import type { EnhancedRenderConfig } from '../../lib/zod-render/types';
 import {
   createInscriptionSuccess,
   createInscriptionQuote,
@@ -38,7 +37,7 @@ const HASHLINK_BLOCK_CONFIG = {
     hashLink: 'hcs://12/0.0.TBD',
     template: '0.0.TBD',
   },
-} as const;
+};
 
 /**
  * Gets the appropriate HashLink block configuration for the specified network.
@@ -47,23 +46,19 @@ const HASHLINK_BLOCK_CONFIG = {
  * @param network The network type to get configuration for
  * @returns Network-specific block configuration with blockId, hashLink, and template
  */
-function getHashLinkBlockId(network: 'mainnet' | 'testnet') {
-  const config = HASHLINK_BLOCK_CONFIG[network];
+// @ts-ignore - keep untyped to satisfy mixed parser while using runtime narrowing
+function getHashLinkBlockId(network) {
+  const config =
+    network === 'mainnet'
+      ? HASHLINK_BLOCK_CONFIG.mainnet
+      : HASHLINK_BLOCK_CONFIG.testnet;
   if (!config || config.blockId === '0.0.TBD') {
     return HASHLINK_BLOCK_CONFIG.testnet;
   }
   return config;
 }
 
-/**
- * Result of HCS-12 block lookup
- */
-interface HCS12BlockResult {
-  blockId: string;
-  hashLink: string;
-  template: string;
-  attributes: Record<string, unknown>;
-}
+// Note: Using inline return type annotations to avoid parser issues with interface declarations
 
 /**
  * Schema for inscribing Hashinal NFT
@@ -210,6 +205,17 @@ export class InscribeHashinalTool
   description =
     'Tool for inscribing Hashinal NFTs. CRITICAL: When user provides content (url/contentRef/base64Data), call with ONLY the content parameters - DO NOT auto-generate name, description, creator, or attributes. A form will be automatically shown to collect metadata from the user. Only include metadata parameters if the user explicitly provided them in their message.';
 
+  // Declare entity resolution preferences to preserve user-specified literal fields
+  getEntityResolutionPreferences(): Record<string, string> {
+    return {
+      name: 'literal',
+      description: 'literal',
+      creator: 'literal',
+      attributes: 'literal',
+      properties: 'literal',
+    };
+  }
+
   get specificInputSchema(): z.ZodObject<z.ZodRawShape> {
     const baseSchema =
       (inscribeHashinalSchema as z.ZodType & { _def?: { schema?: z.ZodType } })
@@ -349,12 +355,7 @@ export class InscribeHashinalTool
             })
           )
         )
-          .withRender(
-            renderConfigs.array(
-              'NFT Attributes',
-              'Attribute'
-            ) as EnhancedRenderConfig
-          )
+          .withRender(renderConfigs.array('NFT Attributes', 'Attribute'))
           .optional()
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .describe('Collectible traits and characteristics.'),
@@ -470,7 +471,7 @@ export class InscribeHashinalTool
       waitForConfirmation: params.quoteOnly
         ? false
         : params.waitForConfirmation ?? true,
-      waitMaxAttempts: 30,
+      waitMaxAttempts: 60,
       waitIntervalMs: 5000,
       network: this.inscriberBuilder['hederaKit'].client.network
         .toString()
@@ -602,6 +603,14 @@ export class InscribeHashinalTool
           },
         });
 
+        this.onEntityCreated?.({
+          entityId: jsonTopicId || imageTopicId || 'unknown',
+          entityName: params.name || 'Unnamed Inscription',
+          entityType: 'topic',
+          transactionId: (result.result as { transactionId?: string })
+            ?.transactionId,
+        });
+
         if (params.withHashLinkBlocks) {
           try {
             const blockData = await this.createHashLinkBlock(
@@ -657,6 +666,14 @@ export class InscribeHashinalTool
                 type: params.type,
                 attributes: params.attributes,
               },
+            });
+
+            this.onEntityCreated?.({
+              entityId: jsonTopicId || imageTopicId || 'unknown',
+              entityName: params.name || 'Unnamed Inscription',
+              entityType: 'topic',
+              transactionId: (result.result as { transactionId?: string })
+                ?.transactionId,
             });
 
             if (params.withHashLinkBlocks) {
@@ -768,7 +785,12 @@ export class InscribeHashinalTool
   private async createHashLinkBlock(
     response: ReturnType<typeof createInscriptionSuccess>,
     _mimeType?: string
-  ): Promise<HCS12BlockResult> {
+  ): Promise<{
+    blockId: string;
+    hashLink: string;
+    template: string;
+    attributes: Record<string, unknown>;
+  }> {
     const clientNetwork = this.inscriberBuilder['hederaKit'].client.network
       .toString()
       .includes('mainnet')

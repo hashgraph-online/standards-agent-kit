@@ -131,9 +131,9 @@ export function createInscriptionSuccess(params: {
     },
     metadata,
     nextSteps: {
-      primary: 'Use the HRL below as metadata when minting your NFT',
+      primary: 'CRITICAL: When minting NFTs, use ONLY the mintingMetadata value as a single string in the metadata array. Do NOT create JSON objects.',
       context:
-        'The HRL (Hedera Resource Locator) is the standardized way to reference your inscribed content in NFT metadata.',
+        'The metadata parameter for minting should be exactly: ["' + hrl + '"] - just the HRL string in an array, nothing else.',
       mintingMetadata: hrl,
     },
   };
