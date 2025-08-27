@@ -379,35 +379,6 @@ export class InscribeHashinalTool
     return focusedSchema as unknown as z.ZodObject<z.ZodRawShape>;
   }
 
-  /**
-   * Implementation of FormValidatable interface
-   * Validates metadata quality and provides detailed feedback
-   */
-  validateMetadataQuality(input: unknown): {
-    needsForm: boolean;
-    reason: string;
-  } {
-    const inputObj = input as Record<string, unknown>;
-    const hasRequiredMetadata = !!(
-      inputObj.name &&
-      inputObj.description &&
-      inputObj.creator
-    );
-
-    if (!hasRequiredMetadata) {
-      return {
-        needsForm: true,
-        reason:
-          'Missing essential metadata (name, description, creator) for NFT creation',
-      };
-    }
-
-    return {
-      needsForm: false,
-      reason: 'All required metadata fields present',
-    };
-  }
-
   protected async executeQuery(
     params: z.infer<typeof inscribeHashinalSchema>,
     _runManager?: CallbackManagerForToolRun
@@ -606,7 +577,7 @@ export class InscribeHashinalTool
         this.onEntityCreated?.({
           entityId: jsonTopicId || imageTopicId || 'unknown',
           entityName: params.name || 'Unnamed Inscription',
-          entityType: 'topic',
+          entityType: 'topicId',
           transactionId: (result.result as { transactionId?: string })
             ?.transactionId,
         });
@@ -671,7 +642,7 @@ export class InscribeHashinalTool
             this.onEntityCreated?.({
               entityId: jsonTopicId || imageTopicId || 'unknown',
               entityName: params.name || 'Unnamed Inscription',
-              entityType: 'topic',
+              entityType: 'topicId',
               transactionId: (result.result as { transactionId?: string })
                 ?.transactionId,
             });

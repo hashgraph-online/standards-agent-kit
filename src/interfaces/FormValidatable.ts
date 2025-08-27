@@ -19,27 +19,20 @@ export interface FormValidatable {
   getFormSchema(): z.ZodSchema;
 
   /**
-   * Optional method to validate metadata quality and provide detailed feedback
-   * @param input The input data to analyze
-   * @returns Object indicating if form is needed and the reason
-   */
-  validateMetadataQuality?(input: unknown): { needsForm: boolean; reason: string };
-
-  /**
-   * Optional method to define which fields are essential for this tool
+   * Defines which fields are essential for this tool
    * Essential fields are always shown in forms even if marked as optional
    * @returns Array of field names that are essential for user experience
    */
-  getEssentialFields?(): string[];
+  getEssentialFields(): string[];
 
   /**
-   * Optional method to determine if a field value should be considered empty
+   * Determines if a field value should be considered empty
    * Allows tools to define custom empty logic for their specific data types
    * @param fieldName The name of the field
    * @param value The value to check
    * @returns true if the field should be considered empty
    */
-  isFieldEmpty?(fieldName: string, value: unknown): boolean;
+  isFieldEmpty(fieldName: string, value: unknown): boolean;
 }
 
 /**
@@ -51,7 +44,11 @@ export function isFormValidatable(tool: unknown): tool is FormValidatable {
     typeof tool === 'object' &&
     'shouldGenerateForm' in tool &&
     'getFormSchema' in tool &&
+    'getEssentialFields' in tool &&
+    'isFieldEmpty' in tool &&
     typeof (tool as FormValidatable).shouldGenerateForm === 'function' &&
-    typeof (tool as FormValidatable).getFormSchema === 'function'
+    typeof (tool as FormValidatable).getFormSchema === 'function' &&
+    typeof (tool as FormValidatable).getEssentialFields === 'function' &&
+    typeof (tool as FormValidatable).isFieldEmpty === 'function'
   );
 }
