@@ -7,14 +7,12 @@ describe('HCS-10 Tool Parameter Integration', () => {
    * "Sorry, I encountered an error processing your request" messages.
    */
   describe('Parameter Extraction Logic Integration', () => {
-    // Simulate the actual parameter extraction logic from SendMessageToConnectionTool
     function extractTargetIdentifier(args: {
       targetIdentifier?: string;
       connectionId?: string;
       agentId?: string;
       message: string;
     }): string | undefined {
-      // This is the exact logic from the fixed SendMessageToConnectionTool
       return args.targetIdentifier || args.agentId || args.connectionId;
     }
 
@@ -57,7 +55,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
       };
 
       const result = extractTargetIdentifier(args);
-      // targetIdentifier should have highest priority
       expect(result).toBe('priority-target');
     });
 
@@ -69,7 +66,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
       };
 
       const result = extractTargetIdentifier(args);
-      // agentId should have priority over connectionId
       expect(result).toBe('agent-priority');
     });
 
@@ -104,7 +100,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
   });
 
   describe('Connection Lookup Strategy Integration', () => {
-    // Simulate the enhanced connection lookup logic from HCS10Builder
     interface MockConnection {
       connectionId: string;
       targetAccountId: string;
@@ -121,7 +116,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
     ): MockConnection | null {
       let connection = null;
 
-      // Strategy 1: Request key format parsing (req-1:0.0.123@0.0.456)
       if (identifier.includes('@')) {
         const parts = identifier.split('@');
         if (parts.length === 2) {
@@ -130,7 +124,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
         }
       }
 
-      // Strategy 2: Direct lookup (but not for connection numbers to preserve priority)
       if (!connection && !/^[1-9]\d*$/.test(identifier)) {
         connection = connections.find(
           (c) =>
@@ -140,7 +133,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
         );
       }
 
-      // Strategy 3: Auto-prefix account IDs (123456 → 0.0.123456)
       if (
         !connection &&
         !identifier.startsWith('0.0.') &&
@@ -152,7 +144,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
         );
       }
 
-      // Strategy 4: Connection number mapping (1, 2, 3)
       if (!connection && /^[1-9]\d*$/.test(identifier)) {
         const index = parseInt(identifier) - 1;
         if (index >= 0 && index < connections.length) {
@@ -260,7 +251,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
     });
 
     it('should prioritize strategies correctly', () => {
-      // Test that connection numbers go to Strategy 4, not Strategy 2
       const testConnections = [
         ...mockConnections,
         {
@@ -274,7 +264,6 @@ describe('HCS-10 Tool Parameter Integration', () => {
         },
       ];
 
-      // Should use Strategy 4 (index 0) not Strategy 2 (connectionId match)
       const connection = findConnectionWithStrategies('1', testConnections);
       expect(connection!.targetAccountId).toBe('0.0.123456'); // First connection
     });
@@ -327,20 +316,16 @@ describe('HCS-10 Tool Parameter Integration', () => {
 
   describe('Real-World Scenario Integration', () => {
     it('should handle the original error scenario', () => {
-      // Simulate the original error: conversational-agent sends connectionId
-      // but SendMessageToConnectionTool only accepted targetIdentifier
 
       const originalArgs = {
         connectionId: '1',
         message: 'This used to cause "Sorry, I encountered an error"'
       };
 
-      // Before fix: only targetIdentifier was accepted
       function oldParameterHandling(args: any): string | undefined {
         return args.targetIdentifier; // This would be undefined!
       }
 
-      // After fix: accept all three parameter types
       function newParameterHandling(args: {
         targetIdentifier?: string;
         connectionId?: string;

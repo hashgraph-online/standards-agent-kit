@@ -51,7 +51,6 @@ export default defineConfig(async () => {
     }),
   ];
 
-  // Add CommonJS plugin for UMD builds to handle js-sha3 and other CommonJS modules
   if (format === 'umd') {
     const { default: commonjs } = await import('@rollup/plugin-commonjs');
     plugins.push(
@@ -62,7 +61,6 @@ export default defineConfig(async () => {
     );
   }
 
-  // Only add nodePolyfills for UMD builds
   if (format === 'umd') {
     const { nodePolyfills } = await import('vite-plugin-node-polyfills');
     plugins.push(
@@ -97,8 +95,6 @@ export default defineConfig(async () => {
       rollupOptions: {
         external: (id: string) => {
           if (format === 'umd') {
-            // For UMD builds, externalize dependencies that cause build issues
-            // This follows the same pattern as hedera-agent-kit for consistency
             if (id.startsWith('unenv/') || 
                 id === 'tweetnacl' || 
                 id === 'js-sha3' ||

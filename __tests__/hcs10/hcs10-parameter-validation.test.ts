@@ -107,7 +107,6 @@ describe('HCS-10 Parameter Validation', () => {
       message: 'Test message'
     };
 
-    // Simulate the parameter selection logic from SendMessageToConnectionTool
     const targetIdentifier = params.targetIdentifier ||
                              params.agentId ||
                              params.connectionId;
@@ -122,7 +121,6 @@ describe('HCS-10 Parameter Validation', () => {
       message: 'Test message'
     };
 
-    // Should use agentId when targetIdentifier is not present
     const targetIdentifier1 = params1.targetIdentifier ||
                               params1.agentId ||
                               params1.connectionId;
@@ -134,7 +132,6 @@ describe('HCS-10 Parameter Validation', () => {
       message: 'Test message'
     };
 
-    // Should use connectionId when neither targetIdentifier nor agentId are present
     const targetIdentifier2 = params2.targetIdentifier ||
                               params2.agentId ||
                               params2.connectionId;
@@ -153,7 +150,6 @@ describe('HCS-10 Parameter Validation', () => {
 
     expect(targetIdentifier).toBeUndefined();
 
-    // This should trigger the error in the actual tool
     if (!targetIdentifier) {
       expect(() => {
         throw new Error("Either targetIdentifier, connectionId, or agentId must be provided");

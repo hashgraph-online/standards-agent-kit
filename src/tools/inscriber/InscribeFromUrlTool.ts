@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { BaseInscriberQueryTool } from './base-inscriber-tools';
-import { InscriptionOptions, Logger } from '@hashgraphonline/standards-sdk';
+import { InscriptionOptions, Logger, InscriptionResponse } from '@hashgraphonline/standards-sdk';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import { extractTopicIds, buildInscriptionLinks } from '../../utils/inscription-utils';
 
 const logger = new Logger({ module: 'InscribeFromUrlTool' });
 
@@ -309,21 +310,24 @@ export class InscribeFromUrlTool extends BaseInscriberQueryTool<
         );
       }
 
-      if (result.confirmed && !result.quote) {
-        const topicId =
-          result.inscription?.topic_id || (result.result as any).topicId;
-        const network = options.network || 'testnet';
-        const cdnUrl = topicId
-          ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}`
-          : null;
+      const typed = result as InscriptionResponse;
+
+      if (typed.confirmed && !typed.quote) {
+        const ids = extractTopicIds(typed.inscription, typed.result);
+        const network = (options.network || 'testnet') as 'mainnet' | 'testnet';
+        const { topicId, cdnUrl } = buildInscriptionLinks(
+          ids,
+          network,
+          '1'
+        );
         return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${
-          (result.result as any).transactionId
+          (typed.result as { transactionId?: string })?.transactionId ?? 'unknown'
         }\nTopic ID: ${topicId || 'N/A'}${
           cdnUrl ? `\nView inscription: ${cdnUrl}` : ''
         }\n\nThe inscription is now available.`;
-      } else if (!result.quote && !result.confirmed) {
+      } else if (!typed.quote && !typed.confirmed) {
         return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${
-          (result.result as any).transactionId
+          (typed.result as { transactionId?: string })?.transactionId ?? 'unknown'
         }\n\nThe inscription is processing and will be confirmed shortly.`;
       } else {
         return 'Inscription operation completed.';

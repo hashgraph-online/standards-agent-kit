@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BaseInscriberQueryTool } from './base-inscriber-tools';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import type { RetrievedInscriptionResult } from '@hashgraphonline/standards-sdk';
 
 /**
  * Schema for retrieving inscription
@@ -51,7 +52,7 @@ export class RetrieveInscriptionTool extends BaseInscriberQueryTool<typeof retri
     params: z.infer<typeof retrieveInscriptionSchema>,
     _runManager?: CallbackManagerForToolRun
   ): Promise<InscriptionRetrievalResult> {
-    const result = await this.inscriberBuilder.retrieveInscription(
+    const result: RetrievedInscriptionResult = await this.inscriberBuilder.retrieveInscription(
       params.transactionId,
       {
         apiKey: params.apiKey,
@@ -59,23 +60,21 @@ export class RetrieveInscriptionTool extends BaseInscriberQueryTool<typeof retri
       }
     );
 
-    const typedResult = result as unknown as Record<string, unknown>;
-
     return {
-      inscriptionId: typedResult.inscriptionId as string | undefined,
-      transactionId: result.transactionId || 'unknown',
-      topicId: typedResult.topic_id as string | undefined,
-      status: result.status || 'unknown',
-      holderId: typedResult.holderId as string | undefined,
+      inscriptionId: (result as unknown as { inscriptionId?: string }).inscriptionId,
+      transactionId: (result as unknown as { transactionId?: string }).transactionId || 'unknown',
+      topicId: (result as unknown as { topic_id?: string; topicId?: string }).topic_id || (result as unknown as { topicId?: string }).topicId,
+      status: (result as unknown as { status?: string }).status || 'unknown',
+      holderId: (result as unknown as { holderId?: string }).holderId,
       metadata: result.metadata,
-      tags: typedResult.tags,
-      mode: result.mode,
-      chunks: typedResult.chunks,
-      createdAt: typedResult.createdAt as string | undefined,
-      completedAt: (typedResult.completed || typedResult.completedAt) as string | undefined,
-      fileUrl: result.fileUrl,
-      mimeType: typedResult.mimeType as string | undefined,
-      fileSize: typedResult.fileSize as number | undefined,
+      tags: (result as unknown as { tags?: unknown }).tags,
+      mode: (result as unknown as { mode?: string }).mode,
+      chunks: (result as unknown as { chunks?: unknown }).chunks,
+      createdAt: (result as unknown as { createdAt?: string }).createdAt,
+      completedAt: (result as unknown as { completed?: string; completedAt?: string }).completed || (result as unknown as { completedAt?: string }).completedAt,
+      fileUrl: (result as unknown as { fileUrl?: string }).fileUrl,
+      mimeType: (result as unknown as { mimeType?: string }).mimeType,
+      fileSize: (result as unknown as { fileSize?: number }).fileSize,
     };
   }
 }

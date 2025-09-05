@@ -1,7 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 
 describe('HCS-10 Connection Lookup Logic Test', () => {
-  // Mock connections data
   const mockConnections = [
     {
       connectionId: 'conn-1',
@@ -23,14 +22,12 @@ describe('HCS-10 Connection Lookup Logic Test', () => {
     },
   ];
 
-  // Simulate the connection lookup logic from HCS10Builder
   function findConnection(
     identifier: string,
     connections: typeof mockConnections
   ) {
     let connection = null;
 
-    // Strategy 1: Request key format parsing
     if (identifier.includes('@')) {
       const parts = identifier.split('@');
       if (parts.length === 2) {
@@ -39,7 +36,6 @@ describe('HCS-10 Connection Lookup Logic Test', () => {
       }
     }
 
-    // Strategy 2: Direct lookup (but not for connection numbers to preserve priority)
     if (!connection && !/^[1-9]\d*$/.test(identifier)) {
       connection = connections.find(
         (c) =>
@@ -49,7 +45,6 @@ describe('HCS-10 Connection Lookup Logic Test', () => {
       );
     }
 
-    // Strategy 3: Auto-prefix account IDs
     if (
       !connection &&
       !identifier.startsWith('0.0.') &&
@@ -61,7 +56,6 @@ describe('HCS-10 Connection Lookup Logic Test', () => {
       );
     }
 
-    // Strategy 4: Connection number mapping
     if (!connection && /^[1-9]\d*$/.test(identifier)) {
       const index = parseInt(identifier) - 1;
       if (index >= 0 && index < connections.length) {
@@ -169,7 +163,6 @@ describe('HCS-10 Connection Lookup Logic Test', () => {
   });
 
   it('should prioritize strategies correctly', () => {
-    // Add a connection that could match multiple strategies
     const testConnections = [
       ...mockConnections,
       {
@@ -183,8 +176,6 @@ describe('HCS-10 Connection Lookup Logic Test', () => {
       },
     ];
 
-    // Connection number "1" should return the first connection (index 0),
-    // not the one with connectionId "1"
     const connection = findConnection('1', testConnections);
     expect(connection!.targetAccountId).toBe('0.0.123456'); // First connection
   });

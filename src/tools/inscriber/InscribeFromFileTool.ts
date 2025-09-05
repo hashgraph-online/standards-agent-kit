@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { BaseInscriberQueryTool } from './base-inscriber-tools';
-import { InscriptionOptions } from '@hashgraphonline/standards-sdk';
+import { InscriptionOptions, InscriptionResponse } from '@hashgraphonline/standards-sdk';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { extractTopicIds, buildInscriptionLinks } from '../../utils/inscription-utils';
 
 /**
  * Schema for inscribing from file
@@ -206,10 +207,10 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
     }
 
     try {
-      let result: unknown;
+      let result: Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>;
 
       if (params.timeoutMs) {
-        const timeoutPromise = new Promise((_, reject) => {
+        const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(
             () =>
               reject(
@@ -243,22 +244,18 @@ export class InscribeFromFileTool extends BaseInscriberQueryTool<
         );
       }
 
-      const inscriptionResult = result as any;
+      const inscriptionResult = result as InscriptionResponse;
       if (inscriptionResult.confirmed && !inscriptionResult.quote) {
-        const topicId =
-          inscriptionResult.inscription?.topic_id ||
-          inscriptionResult.result.topicId;
-        const network = options.network || 'testnet';
-        const cdnUrl = topicId
-          ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}`
-          : null;
+        const ids = extractTopicIds(inscriptionResult.inscription, inscriptionResult.result);
+        const network = (options.network || 'testnet') as 'mainnet' | 'testnet';
+        const { topicId, cdnUrl } = buildInscriptionLinks(ids, network, '1');
         return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${
-          inscriptionResult.result.transactionId
+          (inscriptionResult.result as { transactionId?: string })?.transactionId ?? 'unknown'
         }\nTopic ID: ${topicId || 'N/A'}${
           cdnUrl ? `\nView inscription: ${cdnUrl}` : ''
         }\n\nThe inscription is now available.`;
       } else if (!inscriptionResult.quote && !inscriptionResult.confirmed) {
-        return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${inscriptionResult.result.transactionId}\n\nThe inscription is processing and will be confirmed shortly.`;
+        return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${(inscriptionResult.result as { transactionId?: string })?.transactionId ?? 'unknown'}\n\nThe inscription is processing and will be confirmed shortly.`;
       } else {
         return 'Inscription operation completed.';
       }

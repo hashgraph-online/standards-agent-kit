@@ -27,7 +27,6 @@ async function runDemo() {
     const hederaKit = new HederaAgentKit(signer);
     await hederaKit.initialize();
 
-    // Create HCS6Builder
     const hcs6Builder = new HCS6Builder(hederaKit);
 
     console.log('🚀 HCS-6 Dynamic Hashinal Demo');
@@ -48,7 +47,6 @@ async function runDemo() {
       ? hederaKit.signer.getOperatorPrivateKey()
       : undefined;
 
-    // Step 2: Create initial dynamic hashinal
     console.log('Step 2: Creating initial dynamic hashinal...');
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
@@ -106,7 +104,6 @@ async function runDemo() {
     console.log(`   Registry: ${registryTopicId}`);
     console.log(`   Content: ${registerResult1.inscriptionTopicId}\n`);
 
-    // Step 3: Query current state
     console.log('Step 3: Querying current state...');
     const registry1 = await hcs6Builder.getRegistry(registryTopicId, {
       order: 'asc',
@@ -119,11 +116,9 @@ async function runDemo() {
       console.log(`   Memo: ${registry1.latestEntry.message?.m || ''}\n`);
     }
 
-    // Wait a moment before updating
     console.log('⏳ Simulating gameplay...\n');
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Step 4: Update the dynamic hashinal
     console.log('Step 4: Updating dynamic hashinal (level up!)...');
     const updatedCharacter = {
       ...gameCharacter,
@@ -178,7 +173,6 @@ async function runDemo() {
     console.log(`   New content: ${registerResult2.inscriptionTopicId}`);
     console.log(`   Update memo: Level up! New equipment acquired\n`);
 
-    // Step 5: Query updated state
     console.log('Step 5: Querying updated state...');
     const registry2 = await hcs6Builder.getRegistry(registryTopicId, {
       order: 'desc',
@@ -210,5 +204,4 @@ async function runDemo() {
   }
 }
 
-// Run the demo
 runDemo().catch(console.error);

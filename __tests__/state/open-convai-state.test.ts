@@ -1,10 +1,6 @@
-// Mock for state-tools MUST be at the top, before OpenConvaiState is imported.
-// OpenConvaiState only uses updateEnvFile from it.
 jest.mock('../../src/utils/state-tools', () => ({
   __esModule: true,
   updateEnvFile: jest.fn(() => Promise.resolve()),
-  // ensureAgentHasEnoughHbar and other functions from state-tools are NOT mocked here,
-  // as OpenConvaiState does not directly call them. This simplifies the mock interface.
 }));
 
 /**

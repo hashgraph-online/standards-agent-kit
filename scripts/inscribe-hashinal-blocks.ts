@@ -152,7 +152,6 @@ async function inscribeUniversalHashinalBlock() {
   }
 }
 
-// Run the inscription
 inscribeUniversalHashinalBlock()
   .then(() => {
     console.log('Universal Hashinal block inscription completed');

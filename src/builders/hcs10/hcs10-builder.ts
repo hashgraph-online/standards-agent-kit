@@ -150,6 +150,10 @@ export class HCS10Builder extends BaseServiceBuilder {
     }
   ) {
     super(hederaKit);
+    const isBytesMode = String(this.hederaKit.operationalMode || 'returnBytes') === 'returnBytes';
+    if (isBytesMode) {
+      throw new Error('HCS10Builder is not available in returnBytes mode (no local operator key). Use BrowserHCSClient with a wallet signer in the renderer.');
+    }
     this.stateManager = stateManager;
 
     const network = this.hederaKit.client.network;

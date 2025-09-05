@@ -31,7 +31,6 @@ describe('Inscriber Tools', () => {
       hederaKit: mockHederaKit,
     } as any;
 
-    // Add network property
     Object.defineProperty(mockInscriberBuilder, 'network', {
       value: 'testnet',
       writable: false,

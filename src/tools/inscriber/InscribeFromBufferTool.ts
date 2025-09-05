@@ -1,23 +1,54 @@
 import { z } from 'zod';
 import { BaseInscriberQueryTool } from './base-inscriber-tools';
-import { InscriptionOptions } from '@hashgraphonline/standards-sdk';
+import {
+  InscriptionOptions,
+  InscriptionResponse,
+  InscriptionResult,
+} from '@hashgraphonline/standards-sdk';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
 import { resolveContent } from '../../utils/content-resolver';
 import { contentRefSchema } from '../../validation/content-ref-schemas';
 import { loadConfig } from '../../config/ContentReferenceConfig';
+import {
+  extractTopicIds,
+  buildInscriptionLinks,
+} from '../../utils/inscription-utils';
 
 const inscribeFromBufferSchema = z.object({
-  base64Data: z.union([z.string(), contentRefSchema])
-    .describe('Content to inscribe as base64 data, plain text, or content reference'),
+  base64Data: z
+    .union([z.string(), contentRefSchema])
+    .describe(
+      'Content to inscribe as base64 data, plain text, or content reference'
+    ),
   fileName: z.string().min(1).describe('Name for the inscribed content'),
   mimeType: z.string().optional().describe('MIME type of the content'),
   metadata: z.record(z.unknown()).optional().describe('Metadata to attach'),
-  tags: z.array(z.string()).optional().describe('Tags to categorize the inscription'),
-  chunkSize: z.number().int().positive().optional().describe('Chunk size for large files'),
-  waitForConfirmation: z.boolean().optional().describe('Wait for inscription confirmation'),
-  timeoutMs: z.number().int().positive().optional().describe('Timeout in milliseconds'),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe('Tags to categorize the inscription'),
+  chunkSize: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Chunk size for large files'),
+  waitForConfirmation: z
+    .boolean()
+    .optional()
+    .describe('Wait for inscription confirmation'),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Timeout in milliseconds'),
   apiKey: z.string().optional().describe('API key for inscription service'),
-  quoteOnly: z.boolean().optional().default(false).describe('Return cost quote only'),
+  quoteOnly: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Return cost quote only'),
 });
 
 export class InscribeFromBufferTool extends BaseInscriberQueryTool<
@@ -218,27 +249,25 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
     result: Awaited<ReturnType<typeof this.inscriberBuilder.inscribe>>,
     options: InscriptionOptions
   ): string {
-    if (result.confirmed && !result.quote) {
-      const topicId =
-        result.inscription?.topic_id || (result.result as any).topicId;
-      const network = options.network || 'testnet';
-      const cdnUrl = topicId
-        ? `https://kiloscribe.com/api/inscription-cdn/${topicId}?network=${network}`
-        : null;
+    const typed = result as InscriptionResponse;
+
+    if (typed.confirmed && !typed.quote) {
+      const ids = extractTopicIds(typed.inscription, typed.result);
+      const network = (options.network || 'testnet') as 'mainnet' | 'testnet';
+      const { topicId, cdnUrl } = buildInscriptionLinks(ids, network, '1');
       return `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${
-        (result.result as any).transactionId
+        (typed.result as InscriptionResult)?.transactionId ?? 'unknown'
       }\nTopic ID: ${topicId || 'N/A'}${
         cdnUrl ? `\nView inscription: ${cdnUrl}` : ''
       }\n\nThe inscription is now available.`;
     }
 
-    if (!result.quote && !result.confirmed) {
+    if (!typed.quote && !typed.confirmed) {
       return `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${
-        (result.result as any).transactionId
+        (typed.result as InscriptionResult)?.transactionId ?? 'unknown'
       }\n\nThe inscription is processing and will be confirmed shortly.`;
     }
 
     return 'Inscription operation completed.';
   }
-
 }

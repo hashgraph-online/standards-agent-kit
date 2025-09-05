@@ -232,3 +232,30 @@ export function createInscriptionError(params: {
     },
   };
 }
+
+/**
+ * Helper for pending inscription state (submitted but not yet confirmed)
+ */
+export function createInscriptionPending(params: {
+  transactionId: string;
+  details?: string;
+  suggestions?: string[];
+}): InscriptionErrorResponse {
+  const { transactionId, details, suggestions } = params;
+  const d = details || `Inscription submitted but not yet confirmed. Transaction ID: ${transactionId}`;
+  return {
+    success: false,
+    type: 'error',
+    title: 'Inscription Submitted (Pending)',
+    message: d,
+    error: {
+      code: 'INSCRIPTION_PENDING',
+      details: d,
+      suggestions: suggestions || [
+        'Wait a few moments for confirmation',
+        'Check the transaction status on a Hedera explorer',
+        "Try the inscription again if it doesn't confirm within 5 minutes",
+      ],
+    },
+  };
+}

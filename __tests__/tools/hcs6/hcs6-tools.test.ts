@@ -31,7 +31,6 @@ describe('HCS-6 Tools', () => {
 
     mockLogger = new Logger({ module: 'HCS6-Test' });
 
-    // Mock PrivateKey methods
     jest.spyOn(PrivateKey, 'generate').mockReturnValue({
       toStringRaw: () => 'mock-private-key',
       toStringDer: () => 'mock-private-key-der',
@@ -93,7 +92,6 @@ describe('HCS-6 Tools', () => {
         expect(parsed.success).toBe(false);
         expect(parsed.error).toBeDefined();
       } catch (e) {
-        // If it's not JSON, it might be a direct error string
         expect(result).toContain('ttl');
       }
     });
@@ -319,7 +317,6 @@ describe('HCS-6 Tools', () => {
         expect(parsed.success).toBe(false);
         expect(parsed.error).toBeDefined();
       } catch (e) {
-        // If it's not JSON, it might be a direct error string
         expect(result).toContain('submitKey');
       }
     });

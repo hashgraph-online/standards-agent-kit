@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 import { BaseInscriberQueryTool } from './base-inscriber-tools';
 import {
@@ -6,6 +5,7 @@ import {
   InscriptionInput,
   ContentResolverRegistry,
   Logger,
+  InscriptionResult,
 } from '@hashgraphonline/standards-sdk';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
 import { validateHIP412Metadata } from '../../validation/hip412-schemas';
@@ -19,9 +19,14 @@ import {
   createInscriptionSuccess,
   createInscriptionQuote,
   createInscriptionError,
+  createInscriptionPending,
   InscriptionResponse,
 } from '../../types/inscription-response';
 import { FormValidatable } from '../../interfaces/FormValidatable';
+import {
+  extractTopicIds,
+  buildInscriptionLinks,
+} from '../../utils/inscription-utils';
 
 /**
  * Network-specific Hashinal block configuration for HashLink blocks
@@ -46,7 +51,6 @@ const HASHLINK_BLOCK_CONFIG = {
  * @param network The network type to get configuration for
  * @returns Network-specific block configuration with blockId, hashLink, and template
  */
-// @ts-ignore - keep untyped to satisfy mixed parser while using runtime narrowing
 function getHashLinkBlockId(network) {
   const config =
     network === 'mainnet'
@@ -57,8 +61,6 @@ function getHashLinkBlockId(network) {
   }
   return config;
 }
-
-// Note: Using inline return type annotations to avoid parser issues with interface declarations
 
 /**
  * Schema for inscribing Hashinal NFT
@@ -205,7 +207,6 @@ export class InscribeHashinalTool
   description =
     'Tool for inscribing Hashinal NFTs. CRITICAL: When user provides content (url/contentRef/base64Data), call with ONLY the content parameters - DO NOT auto-generate name, description, creator, or attributes. A form will be automatically shown to collect metadata from the user. Only include metadata parameters if the user explicitly provided them in their message.';
 
-  // Declare entity resolution preferences to preserve user-specified literal fields
   getEntityResolutionPreferences(): Record<string, string> {
     return {
       name: 'literal',
@@ -350,20 +351,17 @@ export class InscribeHashinalTool
                 .describe('Trait name (e.g., "Rarity", "Color", "Style")'),
               value: z
                 .union([z.string(), z.number()])
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .describe('Trait value (e.g., "Epic", "Blue", 85)'),
             })
           )
         )
           .withRender(renderConfigs.array('NFT Attributes', 'Attribute'))
           .optional()
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .describe('Collectible traits and characteristics.'),
 
         type: z
           .string()
           .optional()
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .describe(
             'Category or genre of the NFT (e.g., "Digital Art", "Photography", "Collectible Card)'
           ),
@@ -523,28 +521,26 @@ export class InscribeHashinalTool
         });
 
         result = await Promise.race([
-          this.inscriberBuilder.inscribe(inscriptionData, options),
+          this.inscriberBuilder.inscribeAuto
+            ? this.inscriberBuilder.inscribeAuto(inscriptionData, options)
+            : this.inscriberBuilder.inscribe(inscriptionData, options),
           timeoutPromise,
         ]);
       } else {
-        result = await this.inscriberBuilder.inscribe(inscriptionData, options);
+        result = this.inscriberBuilder.inscribeAuto
+          ? await this.inscriberBuilder.inscribeAuto(inscriptionData, options)
+          : await this.inscriberBuilder.inscribe(inscriptionData, options);
       }
 
       if (result.confirmed && !result.quote) {
-        const imageTopicId = (
-          result.inscription as { topic_id?: string; jsonTopicId?: string }
-        )?.topic_id;
-        const jsonTopicId = (
-          result.inscription as { topic_id?: string; jsonTopicId?: string }
-        )?.jsonTopicId;
+        const ids = extractTopicIds(result.inscription, result.result);
         const network = options.network || 'testnet';
-
-        const cdnUrl = jsonTopicId
-          ? `https://kiloscribe.com/api/inscription-cdn/${jsonTopicId}?network=${network}`
-          : null;
-
         const fileStandard = params.fileStandard || '1';
-        const hrl = jsonTopicId ? `hcs://${fileStandard}/${jsonTopicId}` : null;
+        const { hrl, cdnUrl, topicId } = buildInscriptionLinks(
+          ids,
+          network,
+          fileStandard
+        );
         const standardType = fileStandard === '6' ? 'Dynamic' : 'Static';
 
         if (!hrl) {
@@ -560,11 +556,10 @@ export class InscribeHashinalTool
 
         const inscriptionResponse = createInscriptionSuccess({
           hrl,
-          topicId: jsonTopicId || imageTopicId || 'unknown',
+          topicId: topicId || 'unknown',
           standard: standardType as 'Static' | 'Dynamic',
           cdnUrl: cdnUrl || undefined,
-          transactionId: (result.result as { transactionId?: string })
-            ?.transactionId,
+          transactionId: (result.result as InscriptionResult)?.transactionId,
           metadata: {
             name: params.name,
             creator: params.creator,
@@ -575,11 +570,10 @@ export class InscribeHashinalTool
         });
 
         this.onEntityCreated?.({
-          entityId: jsonTopicId || imageTopicId || 'unknown',
+          entityId: topicId || 'unknown',
           entityName: params.name || 'Unnamed Inscription',
           entityType: 'topicId',
-          transactionId: (result.result as { transactionId?: string })
-            ?.transactionId,
+          transactionId: (result.result as InscriptionResult)?.transactionId,
         });
 
         if (params.withHashLinkBlocks) {
@@ -593,7 +587,6 @@ export class InscribeHashinalTool
 
             inscriptionResponse.hashLinkBlock = blockData;
           } catch (blockError) {
-            // Log error but don't fail the inscription
             const logger = new Logger({ module: 'InscribeHashinalTool' });
             logger.error('Failed to create HashLink block', {
               error: blockError,
@@ -603,32 +596,24 @@ export class InscribeHashinalTool
 
         return inscriptionResponse;
       } else if (!result.quote && !result.confirmed) {
-        const imageTopicId = (
-          result.inscription as { topic_id?: string; jsonTopicId?: string }
-        )?.topic_id;
-        const jsonTopicId = (
-          result.inscription as { topic_id?: string; jsonTopicId?: string }
-        )?.jsonTopicId;
-
-        if (jsonTopicId || imageTopicId) {
+        const ids = extractTopicIds(result.inscription, result.result);
+        if (ids.jsonTopicId || ids.topicId) {
           const network = options.network || 'testnet';
-          const cdnUrl = jsonTopicId
-            ? `https://kiloscribe.com/api/inscription-cdn/${jsonTopicId}?network=${network}`
-            : null;
-
           const fileStandard = params.fileStandard || '1';
-          const hrl = jsonTopicId
-            ? `hcs://${fileStandard}/${jsonTopicId}`
-            : null;
+          const { hrl, cdnUrl, topicId } = buildInscriptionLinks(
+            ids,
+            network,
+            fileStandard
+          );
           const standardType = fileStandard === '6' ? 'Dynamic' : 'Static';
 
           if (hrl) {
             const inscriptionResponse = createInscriptionSuccess({
               hrl,
-              topicId: jsonTopicId || imageTopicId || 'unknown',
+              topicId: topicId || 'unknown',
               standard: standardType as 'Static' | 'Dynamic',
               cdnUrl: cdnUrl || undefined,
-              transactionId: (result.result as { transactionId?: string })
+              transactionId: (result.result as InscriptionResult)
                 ?.transactionId,
               metadata: {
                 name: params.name,
@@ -640,10 +625,10 @@ export class InscribeHashinalTool
             });
 
             this.onEntityCreated?.({
-              entityId: jsonTopicId || imageTopicId || 'unknown',
+              entityId: topicId || 'unknown',
               entityName: params.name || 'Unnamed Inscription',
               entityType: 'topicId',
-              transactionId: (result.result as { transactionId?: string })
+              transactionId: (result.result as InscriptionResult)
                 ?.transactionId,
             });
 
@@ -658,7 +643,6 @@ export class InscribeHashinalTool
 
                 inscriptionResponse.hashLinkBlock = blockData;
               } catch (blockError) {
-                // Log error but don't fail the inscription
                 const logger = new Logger({ module: 'InscribeHashinalTool' });
                 logger.error('Failed to create HashLink block', {
                   error: blockError,
@@ -671,17 +655,14 @@ export class InscribeHashinalTool
         }
 
         const transactionId =
-          (result.result as { transactionId?: string })?.transactionId ||
-          'unknown';
-        return createInscriptionError({
-          code: 'INSCRIPTION_PENDING',
-          details: `Inscription submitted but not yet confirmed. Transaction ID: ${transactionId}`,
-          suggestions: [
-            'Wait a few moments for confirmation',
-            'Check the transaction status on a Hedera explorer',
-            "Try the inscription again if it doesn't confirm within 5 minutes",
-          ],
+          (result.result as InscriptionResult)?.transactionId || 'unknown';
+        const pending = createInscriptionPending({
+          transactionId,
         });
+        return {
+          ...pending,
+          metadata: { transactionId },
+        } as unknown as InscriptionResponse;
       } else {
         return createInscriptionError({
           code: 'UNKNOWN_STATE',
