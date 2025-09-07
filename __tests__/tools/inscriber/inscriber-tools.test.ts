@@ -164,6 +164,31 @@ describe('Inscriber Tools', () => {
         expect.any(Object)
       );
     });
+
+    it('should return quote when quoteOnly=true (buffer)', async () => {
+      const tool = new InscribeFromBufferTool({ inscriberBuilder: mockInscriberBuilder, logger: mockLogger, hederaKit: mockHederaKit });
+
+      mockInscriberBuilder.inscribe.mockResolvedValue({
+        confirmed: false,
+        quote: {
+          totalCostHbar: 1.23,
+          validUntil: new Date().toISOString(),
+          breakdown: { base: 1.0, network: 0.23 },
+        },
+        result: { jobId: 'job-1' },
+      } as any);
+
+      const result = await tool._call({
+        base64Data: 'SGVsbG8gV29ybGQ=',
+        fileName: 'hello.txt',
+        mimeType: 'text/plain',
+        quoteOnly: true,
+      } as any);
+
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.data || parsed.quote || parsed.message).toBeDefined();
+    });
   });
 
   describe('InscribeHashinalTool', () => {

@@ -1,6 +1,7 @@
 import { BaseServiceBuilder } from 'hedera-agent-kit';
 import type { HederaAgentKit } from 'hedera-agent-kit';
 import { PrivateKey, TransactionReceipt } from '@hashgraph/sdk';
+import { SignerProviderRegistry, type DAppSigner, type NetworkString } from '../../signing/signer-provider';
 import { ActiveConnection, IStateManager } from '../../state/state-types';
 import { ExecuteResult } from '../types';
 import {
@@ -150,10 +151,7 @@ export class HCS10Builder extends BaseServiceBuilder {
     }
   ) {
     super(hederaKit);
-    const isBytesMode = String(this.hederaKit.operationalMode || 'returnBytes') === 'returnBytes';
-    if (isBytesMode) {
-      throw new Error('HCS10Builder is not available in returnBytes mode (no local operator key). Use BrowserHCSClient with a wallet signer in the renderer.');
-    }
+
     this.stateManager = stateManager;
 
     const network = this.hederaKit.client.network;
@@ -166,10 +164,27 @@ export class HCS10Builder extends BaseServiceBuilder {
       ? this.hederaKit.signer.getOperatorPrivateKey().toStringRaw()
       : '';
 
-    this.sdkLogger = new SDKLogger({
-      module: 'HCS10Builder',
-      level: options?.logLevel || 'info',
-    });
+    this.sdkLogger = ((): SDKLogger => {
+      try {
+        if (typeof SDKLogger === 'function') {
+          return new SDKLogger({
+            module: 'HCS10Builder',
+            level: options?.logLevel || 'info',
+          });
+        }
+      } catch {}
+      return {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        trace: () => {},
+        setLogLevel: () => {},
+        getLevel: () => 'info',
+        setSilent: () => {},
+        setModule: () => {},
+      } as unknown as SDKLogger;
+    })();
 
     this.standardClient = new HCS10Client({
       network: this.network,
@@ -282,6 +297,41 @@ export class HCS10Builder extends BaseServiceBuilder {
     inboundTopicId: string,
     memo: string
   ): Promise<TransactionReceipt> {
+    const start = SignerProviderRegistry.startHCSDelegate;
+    const exec = SignerProviderRegistry.walletExecutor;
+    const preferWallet = SignerProviderRegistry.preferWalletOnly;
+    const network: NetworkString = this.network;
+
+    try {
+      const { ByteBuildRegistry } = await import('../../signing/bytes-registry');
+      if (exec && ByteBuildRegistry.has('submitConnectionRequest')) {
+        const built = await ByteBuildRegistry.build('submitConnectionRequest', this.hederaKit, { inboundTopicId, memo });
+        if (built && built.transactionBytes) {
+          const { transactionId } = await exec(built.transactionBytes, network);
+          return ({ transactionId } as unknown) as TransactionReceipt;
+        }
+      }
+    } catch {}
+
+    if (start && exec) {
+      try {
+        const request: Record<string, unknown> = { inboundTopicId, memo };
+        const { transactionBytes } = await start('submitConnectionRequest', request, network);
+        const { transactionId } = await exec(transactionBytes, network);
+        return ({ transactionId } as unknown) as TransactionReceipt;
+      } catch (err) {
+        if (preferWallet) {
+          const e = new Error(`wallet_submit_failed: ${err instanceof Error ? err.message : String(err)}`);
+          (e as unknown as { code: string }).code = 'wallet_submit_failed';
+          throw e;
+        }
+      }
+    } else if (preferWallet) {
+      const e = new Error('wallet_unavailable: connect a wallet or configure StartHCSDelegate and WalletExecutor');
+      (e as unknown as { code: string }).code = 'wallet_unavailable';
+      throw e;
+    }
+
     return this.standardClient.submitConnectionRequest(
       inboundTopicId,
       memo
@@ -298,6 +348,39 @@ export class HCS10Builder extends BaseServiceBuilder {
     feeConfig?: FeeConfigBuilderInterface
   ): Promise<HandleConnectionRequestResponse> {
     try {
+      const start = SignerProviderRegistry.startHCSDelegate;
+      const exec = SignerProviderRegistry.walletExecutor;
+      const preferWallet = SignerProviderRegistry.preferWalletOnly;
+      const network: NetworkString = this.network;
+
+      if (start && exec) {
+        try {
+          const request: Record<string, unknown> = {
+            inboundTopicId,
+            requestingAccountId,
+            connectionRequestId,
+            feeConfig: feeConfig ? 'configured' : undefined,
+          };
+          const { transactionBytes } = await start('handleConnectionRequest', request, network);
+          const { transactionId } = await exec(transactionBytes, network);
+          const minimal = {
+            success: true,
+            transactionId,
+          } as unknown as HandleConnectionRequestResponse;
+          return minimal;
+        } catch (err) {
+          if (preferWallet) {
+            const e = new Error(`wallet_submit_failed: ${err instanceof Error ? err.message : String(err)}`);
+            (e as unknown as { code: string }).code = 'wallet_submit_failed';
+            throw e;
+          }
+        }
+      } else if (preferWallet) {
+        const e = new Error('wallet_unavailable: connect a wallet or configure StartHCSDelegate and WalletExecutor');
+        (e as unknown as { code: string }).code = 'wallet_unavailable';
+        throw e;
+      }
+
       const result = await this.standardClient.handleConnectionRequest(
         inboundTopicId,
         requestingAccountId,
@@ -353,6 +436,58 @@ export class HCS10Builder extends BaseServiceBuilder {
     }
 
     try {
+      let prevMaxSeq = 0
+      try {
+        const prev = await this.getMessages(topicId)
+        prevMaxSeq = prev.messages.reduce((max, m) => Math.max(max, m.sequence_number || 0), 0)
+      } catch {}
+
+      const start = SignerProviderRegistry.startHCSDelegate;
+      const exec = SignerProviderRegistry.walletExecutor;
+      const preferWallet = SignerProviderRegistry.preferWalletOnly;
+      const network: NetworkString = this.network;
+
+      try {
+        const { ByteBuildRegistry } = await import('../../signing/bytes-registry');
+        if (exec && ByteBuildRegistry.has('sendMessage')) {
+          const built = await ByteBuildRegistry.build('sendMessage', this.hederaKit, { topicId, data, memo });
+          if (built && built.transactionBytes) {
+            const { transactionId } = await exec(built.transactionBytes, network);
+            const sequenceNumber = await this.pollForNewSequence(topicId, prevMaxSeq);
+            return {
+              sequenceNumber,
+              receipt: ({ transactionId } as unknown) as TransactionReceipt,
+              transactionId,
+            };
+          }
+        }
+      } catch {}
+
+      if (start && exec) {
+        try {
+          const request: Record<string, unknown> = { topicId, data, memo };
+          const { transactionBytes } = await start('sendMessage', request, network);
+          const { transactionId } = await exec(transactionBytes, network);
+
+          const sequenceNumber = await this.pollForNewSequence(topicId, prevMaxSeq);
+          return {
+            sequenceNumber,
+            receipt: ({ transactionId } as unknown) as TransactionReceipt,
+            transactionId,
+          };
+        } catch (err) {
+          if (preferWallet) {
+            const e = new Error(`wallet_submit_failed: ${err instanceof Error ? err.message : String(err)}`);
+            (e as unknown as { code: string }).code = 'wallet_submit_failed';
+            throw e;
+          }
+        }
+      } else if (preferWallet) {
+        const e = new Error('wallet_unavailable: connect a wallet or configure StartHCSDelegate and WalletExecutor');
+        (e as unknown as { code: string }).code = 'wallet_unavailable';
+        throw e;
+      }
+
       const messageResponse = await this.standardClient.sendMessage(
         topicId,
         data,
@@ -548,6 +683,20 @@ export class HCS10Builder extends BaseServiceBuilder {
     }
   }
 
+  private async pollForNewSequence(topicId: string, prevMax: number): Promise<number | undefined> {
+    const maxAttempts = 10
+    const delayMs = 1000
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const res = await this.getMessages(topicId)
+        const maxSeq = res.messages.reduce((m, msg) => Math.max(m, msg.sequence_number || 0), prevMax)
+        if (maxSeq > prevMax) return maxSeq
+      } catch {}
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+    return undefined
+  }
+
   /**
    * Create and register an agent
    */
@@ -697,6 +846,64 @@ export class HCS10Builder extends BaseServiceBuilder {
           collectorAccountId,
           effectiveExemptIds
         );
+      }
+
+      const preferWallet = SignerProviderRegistry.preferWalletOnly;
+      const browserClient = SignerProviderRegistry.getBrowserHCSClient(this.network as NetworkString) as
+        | { create: (builder: unknown, opts?: Record<string, unknown>) => Promise<unknown> }
+        | null;
+
+      if (browserClient) {
+        try {
+          const aBuilder = new AgentBuilder()
+            .setNetwork(this.network)
+            .setName(registrationData.name)
+            .setAlias(registrationData.alias || `${registrationData.name}-${Date.now()}`)
+            .setBio(registrationData.bio || '')
+            .setType(registrationData.type || 'autonomous')
+            .setModel(registrationData.model || 'agent-model-2024');
+
+          if (registrationData.capabilities?.length) {
+            aBuilder.setCapabilities(registrationData.capabilities as unknown as number[]);
+          }
+          if (registrationData.creator) aBuilder.setCreator(registrationData.creator);
+          if (registrationData.existingProfilePictureTopicId) {
+            aBuilder.setExistingProfilePicture(registrationData.existingProfilePictureTopicId);
+          }
+          if (registrationData.socials) {
+            Object.entries(registrationData.socials).forEach(([platform, handle]) => {
+              if (handle && typeof handle === 'string') {
+                aBuilder.addSocial(platform as SocialPlatform, handle);
+              }
+            });
+          }
+          if (registrationData.properties) {
+            Object.entries(registrationData.properties).forEach(([key, value]) => {
+              if (value != null) aBuilder.addProperty(key, value as unknown as string);
+            });
+          }
+
+          const resp = await browserClient.create(aBuilder, {
+            progressCallback: (_: unknown) => {},
+            updateAccountMemo: true,
+          });
+
+          this.executeResult = {
+            success: true,
+            transactionId: undefined,
+            receipt: undefined,
+            scheduleId: undefined,
+            rawResult: { result: resp, name: registrationData.name },
+          } as unknown as ExecuteResult & { rawResult?: unknown };
+
+          return this;
+        } catch (walletErr) {
+          if (preferWallet) {
+            throw new Error(`wallet_registration_failed: ${walletErr instanceof Error ? walletErr.message : String(walletErr)}`);
+          }
+        }
+      } else if (preferWallet) {
+        throw new Error('wallet_unavailable: BrowserHCSClient factory not provided');
       }
 
       const result = await this.createAndRegisterAgent(registrationData);
@@ -888,6 +1095,21 @@ export class HCS10Builder extends BaseServiceBuilder {
         connectionTopicId = (
           connectionTopicId as unknown as { toString: () => string }
         )?.toString();
+      }
+
+      if (!connectionTopicId || typeof connectionTopicId !== 'string') {
+        try {
+          const refreshed = await this.stateManager?.getConnectionsManager()?.fetchConnectionData(currentAgent.accountId);
+          const established = (refreshed || []).find(
+            (c: unknown) => (c as { targetAccountId?: string; status?: string }).targetAccountId === targetAccountId &&
+              (c as { status?: string }).status === 'established'
+          ) as { connectionTopicId?: string } | undefined;
+          if (established?.connectionTopicId) {
+            connectionTopicId = established.connectionTopicId;
+          }
+        } catch (e) {
+          this.logger.debug('Could not refresh connections after acceptance to derive topic id:', e);
+        }
       }
 
       if (!connectionTopicId || typeof connectionTopicId !== 'string') {
@@ -1106,13 +1328,20 @@ export class HCS10Builder extends BaseServiceBuilder {
 
       const operatorId = `${currentAgent.inboundTopicId}@${currentAgent.accountId}`;
 
+      let baseSeq = 0
+      try {
+        const prev = await this.getMessages(connectionTopicId)
+        baseSeq = prev.messages.reduce((max, m) => Math.max(max, m.sequence_number || 0), 0)
+      } catch {}
+
       const messageResult = await this.sendMessage(
         connectionTopicId,
         params.message,
         `Agent message from ${currentAgent.name}`
       );
 
-      if (!messageResult.sequenceNumber) {
+      const effectiveSeq = messageResult.sequenceNumber ?? baseSeq
+      if (effectiveSeq === 0) {
         throw new Error('Failed to send message');
       }
 
@@ -1121,7 +1350,7 @@ export class HCS10Builder extends BaseServiceBuilder {
         reply = await this.monitorResponses(
           connectionTopicId,
           operatorId,
-          messageResult.sequenceNumber
+          effectiveSeq
         );
       } else {
         this.addNote(

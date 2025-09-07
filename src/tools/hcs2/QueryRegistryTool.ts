@@ -34,7 +34,7 @@ const queryRegistrySchema = z.object({
  */
 export class QueryRegistryTool extends BaseHCS2QueryTool<typeof queryRegistrySchema> {
   name = 'queryHCS2Registry';
-  description = 'Query entries from an HCS-2 registry';
+  description = 'Query entries from an HCS-2 registry (standard HCS-2). Retrieves indexed or latest entries and returns a structured summary.'
 
   get specificInputSchema() {
     return queryRegistrySchema;
@@ -50,9 +50,18 @@ export class QueryRegistryTool extends BaseHCS2QueryTool<typeof queryRegistrySch
       skip: params.skip,
     });
 
+    const typeVal = (registry as unknown as { registryType: unknown }).registryType;
+    const isIndexed =
+      typeVal === 0 ||
+      typeVal === '0' ||
+      String(typeVal).toLowerCase() === 'indexed' ||
+      String(typeVal).toLowerCase() === 'index' ||
+      String(typeVal).toLowerCase() === 'index_topic' ||
+      String(typeVal).toLowerCase() === 'indexed_registry';
+
     return {
       topicId: registry.topicId,
-      registryType: registry.registryType === 0 ? 'indexed' : 'non-indexed',
+      registryType: isIndexed ? 'indexed' : 'non-indexed',
       ttl: registry.ttl,
       totalEntries: registry.entries.length,
       entries: registry.entries.map(entry => ({

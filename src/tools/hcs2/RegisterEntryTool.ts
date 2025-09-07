@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BaseHCS2QueryTool } from './base-hcs2-tools';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import { isWalletBytesResponse, type RegistryOperationResult } from '../../types/tx-results';
 
 /**
  * Schema for registering an entry in HCS-2
@@ -30,7 +31,7 @@ const registerEntrySchema = z.object({
  */
 export class RegisterEntryTool extends BaseHCS2QueryTool<typeof registerEntrySchema> {
   name = 'registerHCS2Entry';
-  description = 'Register a new entry in an HCS-2 registry';
+  description = 'Register an entry in an HCS-2 registry (standard HCS-2). Use this to add a target topic to an existing HCS-2 registry.'
 
   get specificInputSchema(): typeof registerEntrySchema {
     return registerEntrySchema;
@@ -41,7 +42,7 @@ export class RegisterEntryTool extends BaseHCS2QueryTool<typeof registerEntrySch
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
     try {
-      const result = await this.hcs2Builder.registerEntry(
+      const result: RegistryOperationResult = await this.hcs2Builder.registerEntry(
         params.registryTopicId,
         {
           targetTopicId: params.targetTopicId,
@@ -50,8 +51,21 @@ export class RegisterEntryTool extends BaseHCS2QueryTool<typeof registerEntrySch
         }
       );
 
-      if (!result.success) {
+      if (!('success' in result) || !result.success) {
         throw new Error(result.error || 'Failed to register entry');
+      }
+
+      if (isWalletBytesResponse(result)) {
+        const txBytes = result.transactionBytes;
+        return {
+          message: 'I prepared an unsigned transaction to register the entry in the HCS-2 registry. Please review and approve to submit.',
+          transactionBytes: txBytes,
+          metadata: {
+            transactionBytes: txBytes,
+            pendingApproval: true,
+            description: `Register HCS-2 entry (registry ${params.registryTopicId} -> target ${params.targetTopicId})`,
+          },
+        };
       }
 
       return `Successfully registered entry in HCS-2 registry!\n\nRegistry Topic: ${params.registryTopicId}\nTarget Topic ID: ${params.targetTopicId}${params.metadata ? `\nMetadata: ${params.metadata}` : ''}${params.memo ? `\nMemo: ${params.memo}` : ''}\n\nThe entry has been added to the registry.`;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BaseHCS2QueryTool } from './base-hcs2-tools';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import { isWalletBytesResponse, type RegistryOperationResult } from '../../types/tx-results';
 
 /**
  * Schema for migrating an HCS-2 registry
@@ -42,7 +43,7 @@ export class MigrateRegistryTool extends BaseHCS2QueryTool<typeof migrateRegistr
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
     try {
-      const result = await this.hcs2Builder.migrateRegistry(
+      const result: RegistryOperationResult = await this.hcs2Builder.migrateRegistry(
         params.registryTopicId,
         {
           targetTopicId: params.targetTopicId,
@@ -51,8 +52,21 @@ export class MigrateRegistryTool extends BaseHCS2QueryTool<typeof migrateRegistr
         }
       );
 
-      if (!result.success) {
+      if (!('success' in result) || !result.success) {
         throw new Error(result.error || 'Failed to migrate registry');
+      }
+
+      if (isWalletBytesResponse(result)) {
+        const txBytes = result.transactionBytes;
+        return {
+          message: 'I prepared an unsigned transaction to migrate the HCS-2 registry. Please review and approve to submit.',
+          transactionBytes: txBytes,
+          metadata: {
+            transactionBytes: txBytes,
+            pendingApproval: true,
+            description: `Migrate HCS-2 registry (from ${params.registryTopicId} to ${params.targetTopicId})`,
+          },
+        };
       }
 
       return `Successfully migrated HCS-2 registry!\n\nFrom Registry Topic: ${params.registryTopicId}\nTo Target Topic: ${params.targetTopicId}${params.metadata ? `\nMetadata: ${params.metadata}` : ''}${params.memo ? `\nMemo: ${params.memo}` : ''}\n\nThe registry has been migrated to the new topic.`;

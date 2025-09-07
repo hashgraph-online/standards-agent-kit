@@ -273,7 +273,7 @@ export class HCS10Client {
         topicId,
         data,
         memo,
-        submitKey
+        submitKey as any
       );
       return messageResponse.topicSequenceNumber?.toNumber();
     } catch (error) {

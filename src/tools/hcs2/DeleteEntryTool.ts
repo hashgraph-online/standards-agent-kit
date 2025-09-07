@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BaseHCS2QueryTool } from './base-hcs2-tools';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import { isWalletBytesResponse, type RegistryOperationResult } from '../../types/tx-results';
 
 /**
  * Schema for deleting an entry from HCS-2
@@ -37,7 +38,7 @@ export class DeleteEntryTool extends BaseHCS2QueryTool<typeof deleteEntrySchema>
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
     try {
-      const result = await this.hcs2Builder.deleteEntry(
+      const result: RegistryOperationResult = await this.hcs2Builder.deleteEntry(
         params.registryTopicId,
         {
           uid: params.uid,
@@ -45,8 +46,21 @@ export class DeleteEntryTool extends BaseHCS2QueryTool<typeof deleteEntrySchema>
         }
       );
 
-      if (!result.success) {
+      if (!('success' in result) || !result.success) {
         throw new Error(result.error || 'Failed to delete entry');
+      }
+
+      if (isWalletBytesResponse(result)) {
+        const txBytes = result.transactionBytes;
+        return {
+          message: 'I prepared an unsigned transaction to delete the HCS-2 registry entry. Please review and approve to submit.',
+          transactionBytes: txBytes,
+          metadata: {
+            transactionBytes: txBytes,
+            pendingApproval: true,
+            description: `Delete HCS-2 entry (registry ${params.registryTopicId}, uid ${params.uid})`,
+          },
+        };
       }
 
       return `Successfully deleted entry from HCS-2 registry!\n\nRegistry Topic: ${params.registryTopicId}\nUID: ${params.uid}${params.memo ? `\nMemo: ${params.memo}` : ''}\n\nThe entry has been removed from the registry.`;

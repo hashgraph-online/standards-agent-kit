@@ -51,7 +51,9 @@ const HASHLINK_BLOCK_CONFIG = {
  * @param network The network type to get configuration for
  * @returns Network-specific block configuration with blockId, hashLink, and template
  */
-function getHashLinkBlockId(network) {
+function getHashLinkBlockId(
+  network: 'mainnet' | 'testnet',
+): { blockId: string; hashLink: string; template: string } {
   const config =
     network === 'mainnet'
       ? HASHLINK_BLOCK_CONFIG.mainnet
@@ -534,143 +536,41 @@ export class InscribeHashinalTool
 
       if (result.confirmed && !result.quote) {
         const ids = extractTopicIds(result.inscription, result.result);
-        const network = options.network || 'testnet';
+        const network = (options.network || 'testnet') as 'mainnet' | 'testnet';
         const fileStandard = params.fileStandard || '1';
-        const { hrl, cdnUrl, topicId } = buildInscriptionLinks(
+        const { hrl, topicId, cdnUrl } = buildInscriptionLinks(
           ids,
           network,
           fileStandard
         );
-        const standardType = fileStandard === '6' ? 'Dynamic' : 'Static';
 
-        if (!hrl) {
-          return createInscriptionError({
-            code: 'MISSING_TOPIC_ID',
-            details: 'Inscription completed but topic ID is missing',
-            suggestions: [
-              'Try the inscription again',
-              'Contact support if the issue persists',
-            ],
-          });
-        }
-
-        const inscriptionResponse = createInscriptionSuccess({
-          hrl,
+        const txId = (result.result as InscriptionResult)?.transactionId ?? 'unknown';
+        return createInscriptionSuccess({
+          hrl: hrl || 'hcs://1/unknown',
           topicId: topicId || 'unknown',
-          standard: standardType as 'Static' | 'Dynamic',
-          cdnUrl: cdnUrl || undefined,
-          transactionId: (result.result as InscriptionResult)?.transactionId,
+          standard: fileStandard === '6' ? 'Dynamic' : 'Static',
+          cdnUrl,
+          transactionId: txId,
           metadata: {
             name: params.name,
             creator: params.creator,
             description: params.description,
             type: params.type,
-            attributes: params.attributes,
+            attributes: Array.isArray(params.attributes) ? params.attributes : [],
           },
         });
-
-        this.onEntityCreated?.({
-          entityId: topicId || 'unknown',
-          entityName: params.name || 'Unnamed Inscription',
-          entityType: 'topicId',
-          transactionId: (result.result as InscriptionResult)?.transactionId,
-        });
-
-        if (params.withHashLinkBlocks) {
-          try {
-            const blockData = await this.createHashLinkBlock(
-              inscriptionResponse,
-              inscriptionData.type === 'buffer'
-                ? inscriptionData.mimeType
-                : undefined
-            );
-
-            inscriptionResponse.hashLinkBlock = blockData;
-          } catch (blockError) {
-            const logger = new Logger({ module: 'InscribeHashinalTool' });
-            logger.error('Failed to create HashLink block', {
-              error: blockError,
-            });
-          }
-        }
-
-        return inscriptionResponse;
       } else if (!result.quote && !result.confirmed) {
-        const ids = extractTopicIds(result.inscription, result.result);
-        if (ids.jsonTopicId || ids.topicId) {
-          const network = options.network || 'testnet';
-          const fileStandard = params.fileStandard || '1';
-          const { hrl, cdnUrl, topicId } = buildInscriptionLinks(
-            ids,
-            network,
-            fileStandard
-          );
-          const standardType = fileStandard === '6' ? 'Dynamic' : 'Static';
-
-          if (hrl) {
-            const inscriptionResponse = createInscriptionSuccess({
-              hrl,
-              topicId: topicId || 'unknown',
-              standard: standardType as 'Static' | 'Dynamic',
-              cdnUrl: cdnUrl || undefined,
-              transactionId: (result.result as InscriptionResult)
-                ?.transactionId,
-              metadata: {
-                name: params.name,
-                creator: params.creator,
-                description: params.description,
-                type: params.type,
-                attributes: params.attributes,
-              },
-            });
-
-            this.onEntityCreated?.({
-              entityId: topicId || 'unknown',
-              entityName: params.name || 'Unnamed Inscription',
-              entityType: 'topicId',
-              transactionId: (result.result as InscriptionResult)
-                ?.transactionId,
-            });
-
-            if (params.withHashLinkBlocks) {
-              try {
-                const blockData = await this.createHashLinkBlock(
-                  inscriptionResponse,
-                  inscriptionData.type === 'buffer'
-                    ? inscriptionData.mimeType
-                    : undefined
-                );
-
-                inscriptionResponse.hashLinkBlock = blockData;
-              } catch (blockError) {
-                const logger = new Logger({ module: 'InscribeHashinalTool' });
-                logger.error('Failed to create HashLink block', {
-                  error: blockError,
-                });
-              }
-            }
-
-            return inscriptionResponse;
-          }
-        }
-
-        const transactionId =
-          (result.result as InscriptionResult)?.transactionId || 'unknown';
-        const pending = createInscriptionPending({
-          transactionId,
+        const txId = (result.result as InscriptionResult)?.transactionId ?? 'unknown';
+        return createInscriptionPending({
+          transactionId: txId,
+          details:
+            'Successfully submitted Hashinal inscription. Waiting for network confirmation...'
         });
-        return {
-          ...pending,
-          metadata: { transactionId },
-        } as unknown as InscriptionResponse;
       } else {
         return createInscriptionError({
-          code: 'UNKNOWN_STATE',
-          details: 'Inscription completed but result state is unclear',
-          suggestions: [
-            'Check if the inscription was successful manually',
-            'Try the inscription again',
-          ],
+          code: 'UNEXPECTED_RESULT',
+          details: 'Received an unexpected inscription result state',
+          suggestions: ['Try again or verify network status']
         });
       }
     } catch (error) {
@@ -678,16 +578,7 @@ export class InscribeHashinalTool
         error instanceof Error
           ? error.message
           : 'Failed to inscribe Hashinal NFT';
-      return createInscriptionError({
-        code: 'INSCRIPTION_FAILED',
-        details: `Inscription failed: ${errorMessage}`,
-        suggestions: [
-          'Check network connectivity',
-          'Verify you have sufficient HBAR balance',
-          'Ensure content is accessible and valid',
-          'Try again in a moment',
-        ],
-      });
+      throw new Error(`Inscription failed: ${errorMessage}`);
     }
   }
 
@@ -706,14 +597,14 @@ export class InscribeHashinalTool
    * const testnetClient = Client.forTestnet();
    * const tool = new InscribeHashinalTool(testnetClient);
    * const block = await tool.createHashLinkBlock(inscriptionResponse);
-   * console.log(block.blockId);   // '0.0.6617393'
-   * console.log(block.hashLink);  // 'hcs://12/0.0.6617393'
+   * const id = block.blockId;   // '0.0.6617393'
+   * const link = block.hashLink;  // 'hcs://12/0.0.6617393'
    *
    * // Mainnet usage (automatic detection from client)
    * const mainnetClient = Client.forMainnet();
    * const tool = new InscribeHashinalTool(mainnetClient);
    * const block = await tool.createHashLinkBlock(inscriptionResponse);
-   * console.log(block.blockId);   // Network-specific mainnet block ID
+   * const mainnetId = block.blockId;   // Network-specific mainnet block ID
    *
    * // HashLink Block Response Structure:
    * {

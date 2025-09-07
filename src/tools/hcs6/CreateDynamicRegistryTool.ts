@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseHCS6QueryTool } from './base-hcs6-tools';
+import { isWalletBytesResponse } from '../../types/tx-results';
 import { HCS6QueryToolParams } from './hcs6-tool-params';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
 
@@ -44,10 +45,23 @@ export class CreateDynamicRegistryTool extends BaseHCS6QueryTool<typeof CreateDy
       submitKey: params.submitKey,
     });
 
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to create dynamic registry');
+    if (!('success' in result) || !result.success) {
+      throw new Error((result as any).error || 'Failed to create dynamic registry');
     }
 
-    return `Successfully created HCS-6 dynamic registry!\n\nTopic ID: ${result.topicId}\nTTL: ${params.ttl} seconds\n\nYou can now register dynamic hashinals to this registry using the topic ID.`;
+    if (isWalletBytesResponse(result)) {
+      const txBytes = result.transactionBytes;
+      return {
+        message: 'I prepared an unsigned transaction to create your HCS-6 dynamic registry. Please review and approve to submit.',
+        transactionBytes: txBytes,
+        metadata: {
+          transactionBytes: txBytes,
+          pendingApproval: true,
+          description: `Create HCS-6 dynamic registry (TTL: ${params.ttl}s)`,
+        },
+      };
+    }
+
+    return `Successfully created HCS-6 dynamic registry!\n\nTopic ID: ${(result as any).topicId}\nTTL: ${params.ttl} seconds\n\nYou can now register dynamic hashinals to this registry using the topic ID.`;
   }
 }

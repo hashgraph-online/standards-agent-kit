@@ -9,3 +9,7 @@ export type { ExecuteResult } from './builders';
 export { HCS10Client } from './hcs10';
 export type { ContentReferenceConfig } from './config/ContentReferenceConfig';
 export { loadConfig } from './config/ContentReferenceConfig';
+export { SignerProviderRegistry } from './signing/signer-provider';
+export type { DAppSigner, WalletInfo, WalletExecutor, StartHCSDelegate, NetworkString } from './signing/signer-provider';
+export { ByteBuildRegistry } from './signing/bytes-registry';
+export type { ByteBuildHandler } from './signing/bytes-registry';

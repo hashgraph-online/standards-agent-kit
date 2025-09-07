@@ -14,6 +14,9 @@ import {
   HCS6CreateHashinalResponse,
   NetworkType,
 } from '@hashgraphonline/standards-sdk';
+import { SignerProviderRegistry, type NetworkString } from '../../signing/signer-provider';
+import type { HCS6TopicRegistrationResult, HCS6RegistryOperationResult, HCS6CreateHashinalResult } from '../../types/tx-results';
+import { CodedError } from '../../utils/CodedError';
 
 /**
  * Builder for HCS-6 operations that delegates to HCS6Client
@@ -57,7 +60,31 @@ export class HCS6Builder extends BaseServiceBuilder {
    */
   async createRegistry(
     options: HCS6CreateRegistryOptions = {}
-  ): Promise<HCS6TopicRegistrationResponse> {
+  ): Promise<HCS6TopicRegistrationResult> {
+    const exec = SignerProviderRegistry.walletExecutor;
+    const preferWallet = SignerProviderRegistry.preferWalletOnly;
+    const network = (this.hederaKit.client.network.toString().includes('mainnet') ? 'mainnet' : 'testnet') as NetworkString;
+
+    if (exec) {
+      const start = SignerProviderRegistry.startHCSDelegate;
+      if (start) {
+        try {
+          const request: Record<string, unknown> = { options };
+          const { transactionBytes } = await start('hcs6.createRegistry', request, network);
+          if (transactionBytes) {
+            return { success: true, transactionBytes };
+          }
+        } catch (err) {
+          if (preferWallet) {
+            throw new CodedError('wallet_submit_failed', `wallet_submit_failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+      if (preferWallet) {
+        throw new CodedError('wallet_unavailable', 'WalletExecutor not configured for hcs6.createRegistry');
+      }
+    }
+
     const client = await this.getHCS6Client();
     const sanitized = { ...options };
     if ('adminKey' in sanitized) {
@@ -72,7 +99,31 @@ export class HCS6Builder extends BaseServiceBuilder {
   async registerEntry(
     registryTopicId: string,
     options: HCS6RegisterEntryOptions
-  ): Promise<HCS6RegistryOperationResponse> {
+  ): Promise<HCS6RegistryOperationResult> {
+    const exec = SignerProviderRegistry.walletExecutor;
+    const preferWallet = SignerProviderRegistry.preferWalletOnly;
+    const network = (this.hederaKit.client.network.toString().includes('mainnet') ? 'mainnet' : 'testnet') as NetworkString;
+
+    if (exec) {
+      const start = SignerProviderRegistry.startHCSDelegate;
+      if (start) {
+        try {
+          const request: Record<string, unknown> = { registryTopicId, options };
+          const { transactionBytes } = await start('hcs6.registerEntry', request, network);
+          if (transactionBytes) {
+            return { success: true, transactionBytes };
+          }
+        } catch (err) {
+          if (preferWallet) {
+            throw new CodedError('wallet_submit_failed', `wallet_submit_failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+      if (preferWallet) {
+        throw new CodedError('wallet_unavailable', 'WalletExecutor not configured for hcs6.registerEntry');
+      }
+    }
+
     const client = await this.getHCS6Client();
     return await client.registerEntry(registryTopicId, options);
   }
@@ -140,9 +191,33 @@ export class HCS6Builder extends BaseServiceBuilder {
   async submitMessage(
     topicId: string,
     payload: any
-  ): Promise<any> {
+  ): Promise<HCS6RegistryOperationResult> {
+    const exec = SignerProviderRegistry.walletExecutor;
+    const preferWallet = SignerProviderRegistry.preferWalletOnly;
+    const network = (this.hederaKit.client.network.toString().includes('mainnet') ? 'mainnet' : 'testnet') as NetworkString;
+
+    if (exec) {
+      const start = SignerProviderRegistry.startHCSDelegate;
+      if (start) {
+        try {
+          const request: Record<string, unknown> = { topicId, payload };
+          const { transactionBytes } = await start('hcs6.submitMessage', request, network);
+          if (transactionBytes) {
+            return { success: true, transactionBytes } as unknown as HCS6RegistryOperationResult;
+          }
+        } catch (err) {
+          if (preferWallet) {
+            throw new CodedError('wallet_submit_failed', `wallet_submit_failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+      if (preferWallet) {
+        throw new CodedError('wallet_unavailable', 'WalletExecutor not configured for hcs6.submitMessage');
+      }
+    }
+
     const client = await this.getHCS6Client();
-    return await client.submitMessage(topicId, payload);
+    return await client.submitMessage(topicId, payload) as unknown as HCS6RegistryOperationResult;
   }
 
   /**

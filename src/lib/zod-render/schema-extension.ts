@@ -1,7 +1,6 @@
 import { ZodType } from 'zod';
 import { RenderConfigSchema, EnhancedRenderConfig, ZodSchemaWithRender, FormFieldType, FieldMetadata, SelectOption } from './types';
 
-// Type definitions for extended Zod schemas - using Record to extend existing properties
 interface ExtendedZodSchema {
   description?: string;
   merge?: (other: ZodType<unknown>) => ZodType<unknown>;

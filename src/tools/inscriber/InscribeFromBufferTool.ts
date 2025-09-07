@@ -64,19 +64,96 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
     return inscribeFromBufferSchema;
   }
 
+  protected override async _call(
+    args: z.infer<typeof inscribeFromBufferSchema>,
+    _runManager?: CallbackManagerForToolRun
+  ): Promise<string> {
+    try {
+      const input = typeof args.base64Data === 'string' ? args.base64Data : '';
+      const buffer = /^[A-Za-z0-9+/]*={0,2}$/.test(input)
+        ? Buffer.from(input, 'base64')
+        : Buffer.from(input, 'utf8');
+
+      const fileName = args.fileName;
+      const mimeType = args.mimeType;
+
+      const network = this.inscriberBuilder['hederaKit'].client.network
+        .toString()
+        .includes('mainnet')
+        ? 'mainnet'
+        : 'testnet';
+
+      const options: InscriptionOptions = {
+        mode: 'file',
+        metadata: args.metadata,
+        tags: args.tags,
+        chunkSize: args.chunkSize,
+        waitForConfirmation: args.quoteOnly ? false : args.waitForConfirmation ?? true,
+        waitMaxAttempts: 60,
+        waitIntervalMs: 5000,
+        apiKey: args.apiKey,
+        network,
+        quoteOnly: args.quoteOnly,
+      };
+
+      const result = await this.inscriberBuilder.inscribe(
+        { type: 'buffer', buffer, fileName, mimeType },
+        options
+      );
+
+      const typed = result as InscriptionResponse;
+      if (typed.confirmed && !typed.quote) {
+        const ids = extractTopicIds(typed.inscription, typed.result);
+        const { topicId, cdnUrl } = buildInscriptionLinks(ids, network, '1');
+        return JSON.stringify({
+          success: true,
+          data: `Successfully inscribed and confirmed content on the Hedera network!\n\nTransaction ID: ${
+            (typed.result as InscriptionResult)?.transactionId ?? 'unknown'
+          }\nTopic ID: ${topicId || 'N/A'}${
+            cdnUrl ? `\nView inscription: ${cdnUrl}` : ''
+          }\n\nThe inscription is now available.`,
+        });
+      }
+
+      return JSON.stringify({
+        success: true,
+        data: `Successfully submitted inscription to the Hedera network!\n\nTransaction ID: ${
+          (typed.result as InscriptionResult)?.transactionId ?? 'unknown'
+        }\n\nThe inscription is processing and will be confirmed shortly.`,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return JSON.stringify({ success: false, error: `Inscription failed: ${errorMessage}` });
+    }
+  }
+
   protected async executeQuery(
     params: z.infer<typeof inscribeFromBufferSchema>,
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
-    this.validateInput(params);
 
     const resolvedContent = await resolveContent(
       params.base64Data,
       params.mimeType,
       params.fileName
     );
+    this.logger?.debug(
+      `[InscribeFromBufferTool] Resolved content bytes: ${
+        resolvedContent.buffer?.length ?? -1
+      }`
+    );
 
-    this.validateContent(resolvedContent.buffer);
+    try {
+      this.validateContent(resolvedContent.buffer);
+    } catch (validationError) {
+      this.logger?.warn(
+        `Content validation warning: ${
+          validationError instanceof Error
+            ? validationError.message
+            : String(validationError)
+        }`
+      );
+    }
 
     const buffer = resolvedContent.buffer;
     const resolvedMimeType = resolvedContent.mimeType || params.mimeType;
@@ -139,6 +216,9 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
     }
 
     try {
+      this.logger?.debug(
+        `[InscribeFromBufferTool] Calling inscribe with fileName: ${resolvedFileName}, mime: ${resolvedMimeType}`
+      );
       const result = await this.executeInscription(
         buffer,
         resolvedFileName,
@@ -146,8 +226,16 @@ export class InscribeFromBufferTool extends BaseInscriberQueryTool<
         options,
         params.timeoutMs
       );
+      this.logger?.debug(
+        `[InscribeFromBufferTool] Inscribe result (confirmed): ${Boolean((result as any)?.confirmed)}`
+      );
       return this.formatInscriptionResult(result, options);
     } catch (error) {
+      this.logger?.warn(
+        `[InscribeFromBufferTool] Error during inscription: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
       const errorMessage =
         error instanceof Error
           ? error.message

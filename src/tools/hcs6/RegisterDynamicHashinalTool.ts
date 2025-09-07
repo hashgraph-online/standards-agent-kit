@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BaseHCS6QueryTool } from './base-hcs6-tools';
+import { isWalletBytesResponse } from '../../types/tx-results';
 import { HCS6QueryToolParams } from './hcs6-tool-params';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
 
@@ -60,10 +61,23 @@ export class RegisterDynamicHashinalTool extends BaseHCS6QueryTool<typeof Regist
       submitKey: params.submitKey,
     });
 
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to register dynamic hashinal');
+    if (!('success' in result) || !result.success) {
+      throw new Error((result as any).error || 'Failed to register dynamic hashinal');
     }
 
-    return `Successfully registered dynamic hashinal!\n\nRegistry Topic ID: ${result.registryTopicId}\nInscription Topic ID: ${result.inscriptionTopicId}${params.memo ? `\nMemo: ${params.memo}` : ''}\n\nThe dynamic hashinal has been created and can be updated using the registry topic ID.`;
+    if (isWalletBytesResponse(result as any)) {
+      const txBytes = (result as any).transactionBytes as string;
+      return {
+        message: 'I prepared an unsigned transaction to register a dynamic hashinal. Please review and approve to submit.',
+        transactionBytes: txBytes,
+        metadata: {
+          transactionBytes: txBytes,
+          pendingApproval: true,
+          description: `Register dynamic hashinal${params.memo ? ` (Memo: ${params.memo})` : ''}`,
+        },
+      };
+    }
+
+    return `Successfully registered dynamic hashinal!\n\nRegistry Topic ID: ${(result as any).registryTopicId}\nInscription Topic ID: ${(result as any).inscriptionTopicId}${params.memo ? `\nMemo: ${params.memo}` : ''}\n\nThe dynamic hashinal has been created and can be updated using the registry topic ID.`;
   }
 }

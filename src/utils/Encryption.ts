@@ -6,11 +6,9 @@
  */
 
 export function encryptMessage(message: string): string {
-    // TODO: Add encryption logic here if useEncryption flag is true.
     return message; // currently returns plaintext.
 }
 
 export function decryptMessage(encryptedMessage: string): string {
-    // TODO: Add decryption logic here.
     return encryptedMessage;
 }

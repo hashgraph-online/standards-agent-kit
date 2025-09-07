@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BaseHCS2QueryTool } from './base-hcs2-tools';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import { isWalletBytesResponse, type RegistryOperationResult } from '../../types/tx-results';
 
 /**
  * Schema for updating an entry in HCS-2
@@ -45,7 +46,7 @@ export class UpdateEntryTool extends BaseHCS2QueryTool<typeof updateEntrySchema>
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
     try {
-      const result = await this.hcs2Builder.updateEntry(
+      const result: RegistryOperationResult = await this.hcs2Builder.updateEntry(
         params.registryTopicId,
         {
           targetTopicId: params.targetTopicId,
@@ -55,8 +56,21 @@ export class UpdateEntryTool extends BaseHCS2QueryTool<typeof updateEntrySchema>
         }
       );
 
-      if (!result.success) {
+      if (!('success' in result) || !result.success) {
         throw new Error(result.error || 'Failed to update entry');
+      }
+
+      if (isWalletBytesResponse(result)) {
+        const txBytes = result.transactionBytes;
+        return {
+          message: 'I prepared an unsigned transaction to update the HCS-2 registry entry. Please review and approve to submit.',
+          transactionBytes: txBytes,
+          metadata: {
+            transactionBytes: txBytes,
+            pendingApproval: true,
+            description: `Update HCS-2 entry (registry ${params.registryTopicId}, uid ${params.uid} -> ${params.targetTopicId})`,
+          },
+        };
       }
 
       return `Successfully updated entry in HCS-2 registry!\n\nRegistry Topic: ${params.registryTopicId}\nUID: ${params.uid}\nNew Target Topic ID: ${params.targetTopicId}${params.metadata ? `\nMetadata: ${params.metadata}` : ''}${params.memo ? `\nMemo: ${params.memo}` : ''}\n\nThe entry has been updated in the registry.`;

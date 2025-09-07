@@ -1,6 +1,6 @@
 {
   "name": "@hashgraphonline/standards-agent-kit",
-  "version": "0.2.136",
+  "version": "0.2.139",
   "description": "A modular SDK for building on-chain autonomous agents using Hashgraph Online Standards, including HCS-10 for agent discovery and communication.",
   "type": "module",
   "main": "./dist/cjs/standards-agent-kit.cjs",
@@ -90,8 +90,8 @@
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.72.0",
-    "@hashgraphonline/standards-sdk": "0.0.188",
-    "@kiloscribe/inscription-sdk": "^1.0.59",
+    "@hashgraphonline/standards-sdk": "^0.0.192",
+    "@kiloscribe/inscription-sdk": "^1.0.60",
     "@langchain/community": "^0.3.5",
     "@langchain/core": "^0.3.71",
     "@langchain/openai": "^0.6.7",
@@ -129,8 +129,7 @@
     "vite-plugin-node-polyfills": "^0.23.0",
     "vite-plugin-string-replace": "^1.1.3"
   },
-  "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912"
-  ,
+  "packageManager": "pnpm@10.11.1+sha512.e519b9f7639869dc8d5c3c5dfef73b3f091094b0a006d7317353c72b124e80e1afd429732e28705ad6bfa1ee879c1fce46c128ccebd3192101f43dd67c667912",
   "pnpm": {
     "overrides": {
       "@hashgraph/sdk": "2.72.0"

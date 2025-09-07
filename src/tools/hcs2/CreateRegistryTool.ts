@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { BaseHCS2QueryTool } from './base-hcs2-tools';
 import { HCS2RegistryType } from '@hashgraphonline/standards-sdk';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
+import { isWalletBytesResponse, type TopicRegistrationResult } from '../../types/tx-results';
 
 /**
  * Schema for creating an HCS-2 registry
@@ -32,7 +33,7 @@ const createRegistrySchema = z.object({
  */
 export class CreateRegistryTool extends BaseHCS2QueryTool<typeof createRegistrySchema> {
   name = 'createHCS2Registry';
-  description = 'Create a new HCS-2 registry topic for storing decentralized data';
+  description = 'Create an HCS-2 registry (standard HCS-2). Use when the user asks to create an HCS-2 registry, not a generic HCS topic. Builds a standards-compliant registry topic and returns the result or transaction bytes.'
 
   get specificInputSchema(): typeof createRegistrySchema {
     return createRegistrySchema;
@@ -42,19 +43,43 @@ export class CreateRegistryTool extends BaseHCS2QueryTool<typeof createRegistryS
     params: z.infer<typeof createRegistrySchema>,
     _runManager?: CallbackManagerForToolRun
   ): Promise<unknown> {
+    const normalizeKey = (val?: string | boolean): string | boolean | undefined => {
+      if (typeof val === 'string') {
+        const lc = val.trim().toLowerCase();
+        if (lc === 'true') return true;
+        if (lc === 'false') return false;
+        return val; // assume public key string
+      }
+      return val;
+    };
+
     try {
-      const result = await this.hcs2Builder.createRegistry({
+      const result: TopicRegistrationResult = await this.hcs2Builder.createRegistry({
         registryType: params.registryType,
         ttl: params.ttl,
-        adminKey: params.adminKey,
-        submitKey: params.submitKey,
+        adminKey: normalizeKey(params.adminKey),
+        submitKey: normalizeKey(params.submitKey),
       });
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to create registry');
       }
 
-      return `Successfully created HCS-2 registry!\n\nTopic ID: ${result.topicId}\nRegistry Type: ${params.registryType === 1 ? 'Non-Indexed' : 'Indexed'}\nTTL: ${params.ttl || 86400} seconds\n\nYou can now register entries to this registry using the topic ID.`;
+      if (isWalletBytesResponse(result)) {
+        const txBytes = result.transactionBytes;
+        return {
+          message: 'I prepared an unsigned transaction to create your HCS-2 registry. Please review and approve to submit.',
+          transactionBytes: txBytes,
+          metadata: {
+            transactionBytes: txBytes,
+            pendingApproval: true,
+            description: `Create HCS-2 registry (${params.registryType === 1 ? 'Non-Indexed' : 'Indexed'}; TTL: ${params.ttl || 86400}s)`,
+          },
+        };
+      }
+
+      const topicId = (result as any)?.topicId || 'unknown';
+      return `Successfully created HCS-2 registry!\n\nTopic ID: ${topicId}\nRegistry Type: ${params.registryType === 1 ? 'Non-Indexed' : 'Indexed'}\nTTL: ${params.ttl || 86400} seconds\n\nYou can now register entries to this registry using the topic ID.`;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create HCS-2 registry';
       throw new Error(`Registry creation failed: ${errorMessage}`);
