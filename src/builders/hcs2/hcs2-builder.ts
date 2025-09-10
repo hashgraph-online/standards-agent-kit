@@ -36,7 +36,7 @@ export class HCS2Builder extends BaseServiceBuilder {
     if (!this.hcs2Client) {
       const operatorId = this.hederaKit.signer.getAccountId().toString();
       const operatorPrivateKey = this.hederaKit.signer?.getOperatorPrivateKey()
-        ? this.hederaKit.signer.getOperatorPrivateKey().toStringRaw()
+        ? this.hederaKit.signer.getOperatorPrivateKey().toString()
         : '';
 
       const network = this.hederaKit.client.network;

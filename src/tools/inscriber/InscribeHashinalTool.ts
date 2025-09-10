@@ -51,9 +51,11 @@ const HASHLINK_BLOCK_CONFIG = {
  * @param network The network type to get configuration for
  * @returns Network-specific block configuration with blockId, hashLink, and template
  */
-function getHashLinkBlockId(
-  network: 'mainnet' | 'testnet',
-): { blockId: string; hashLink: string; template: string } {
+function getHashLinkBlockId(network: 'mainnet' | 'testnet'): {
+  blockId: string;
+  hashLink: string;
+  template: string;
+} {
   const config =
     network === 'mainnet'
       ? HASHLINK_BLOCK_CONFIG.mainnet
@@ -544,8 +546,9 @@ export class InscribeHashinalTool
           fileStandard
         );
 
-        const txId = (result.result as InscriptionResult)?.transactionId ?? 'unknown';
-        return createInscriptionSuccess({
+        const txId =
+          (result.result as InscriptionResult)?.transactionId ?? 'unknown';
+        const successResponse = createInscriptionSuccess({
           hrl: hrl || 'hcs://1/unknown',
           topicId: topicId || 'unknown',
           standard: fileStandard === '6' ? 'Dynamic' : 'Static',
@@ -556,21 +559,36 @@ export class InscribeHashinalTool
             creator: params.creator,
             description: params.description,
             type: params.type,
-            attributes: Array.isArray(params.attributes) ? params.attributes : [],
+            attributes: Array.isArray(params.attributes)
+              ? params.attributes
+              : [],
           },
         });
+
+        if (params.withHashLinkBlocks !== false) {
+          try {
+            const block = await this.createHashLinkBlock(successResponse);
+            successResponse.hashLinkBlock = block;
+          } catch (e) {
+            const logger = new Logger({ module: 'InscribeHashinalTool' });
+            logger.warn('Failed to create HashLink block', e);
+          }
+        }
+
+        return successResponse;
       } else if (!result.quote && !result.confirmed) {
-        const txId = (result.result as InscriptionResult)?.transactionId ?? 'unknown';
+        const txId =
+          (result.result as InscriptionResult)?.transactionId ?? 'unknown';
         return createInscriptionPending({
           transactionId: txId,
           details:
-            'Successfully submitted Hashinal inscription. Waiting for network confirmation...'
+            'Successfully submitted Hashinal inscription. Waiting for network confirmation...',
         });
       } else {
         return createInscriptionError({
           code: 'UNEXPECTED_RESULT',
           details: 'Received an unexpected inscription result state',
-          suggestions: ['Try again or verify network status']
+          suggestions: ['Try again or verify network status'],
         });
       }
     } catch (error) {
