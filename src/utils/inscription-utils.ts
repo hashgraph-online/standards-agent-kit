@@ -1,3 +1,5 @@
+import { RetrievedInscriptionResult } from '@kiloscribe/inscription-sdk';
+
 export type NetworkType = 'mainnet' | 'testnet';
 
 export interface TopicIds {
@@ -17,10 +19,12 @@ function getStringProp(obj: unknown, key: string): string | undefined {
  * - Collects topic_id/topicId from either inscription or result
  */
 export function extractTopicIds(
-  inscription: unknown,
+  inscription: RetrievedInscriptionResult | undefined,
   result?: unknown
 ): TopicIds {
-  const jsonTopicId = getStringProp(inscription, 'jsonTopicId');
+  const jsonTopicId =
+    (inscription as RetrievedInscriptionResult | undefined)?.jsonTopicId ||
+    getStringProp(inscription, 'json_topic_id');
 
   const imageTopicId =
     getStringProp(inscription, 'topic_id') ||

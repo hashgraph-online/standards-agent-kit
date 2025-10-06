@@ -161,7 +161,8 @@ const inscribeHashinalSchema = extendZodSchema(
     waitForConfirmation: z
       .boolean()
       .optional()
-      .describe('Whether to wait for inscription confirmation'),
+      .describe('Whether to wait for inscription confirmation')
+      .default(true),
     timeoutMs: z
       .number()
       .int()
@@ -547,7 +548,9 @@ export class InscribeHashinalTool
         );
 
         const txId =
-          (result.result as InscriptionResult)?.transactionId ?? 'unknown';
+          result?.inscription?.tx_id ||
+          (result?.result as InscriptionResult)?.transactionId ||
+          'unknown';
         const successResponse = createInscriptionSuccess({
           hrl: hrl || 'hcs://1/unknown',
           topicId: topicId || 'unknown',
@@ -578,7 +581,9 @@ export class InscribeHashinalTool
         return successResponse;
       } else if (!result.quote && !result.confirmed) {
         const txId =
-          (result.result as InscriptionResult)?.transactionId ?? 'unknown';
+          (result.result as InscriptionResult)?.transactionId ||
+          result?.inscription?.transactionId ||
+          'unknown';
         return createInscriptionPending({
           transactionId: txId,
           details:

@@ -4,6 +4,7 @@ import {
   inscribe,
   inscribeWithSigner,
   retrieveInscription,
+  getOrCreateSDK,
   InscriptionInput,
   InscriptionOptions,
   InscriptionResponse,
@@ -11,8 +12,13 @@ import {
   HederaClientConfig,
   NetworkType,
   getTopicId,
+  Logger,
 } from '@hashgraphonline/standards-sdk';
-import { InscriptionSDK } from '@kiloscribe/inscription-sdk';
+import type {
+  InscriptionSDK,
+  InscriptionResult,
+  RegistrationProgressData,
+} from '@kiloscribe/inscription-sdk';
 import type { AgentOperationalMode } from 'hedera-agent-kit';
 
 /**
@@ -23,23 +29,60 @@ interface DAppSigner {
   [key: string]: unknown;
 }
 
+export interface PendingInscriptionResponse {
+  transactionBytes: string;
+  tx_id?: string;
+  topic_id?: string;
+  status?: string;
+  completed?: boolean;
+}
+
+export interface CompletedInscriptionResponse {
+  confirmed?: boolean;
+  result?: InscriptionResult;
+  inscription?: RetrievedInscriptionResult;
+  jsonTopicId?: string;
+  network?: string;
+}
 /**
  * Builder for Inscription operations
  */
+type InscriptionSDKInstance = InscriptionSDK;
+
+export const toDashedTransactionId = (transactionId: string): string => {
+  if (transactionId.includes('-')) {
+    return transactionId;
+  }
+
+  const [account, timePart] = transactionId.split('@');
+  if (!account || !timePart) {
+    return transactionId;
+  }
+
+  const [secondsPart, nanosPart] = timePart.split('.');
+  if (!secondsPart) {
+    return transactionId;
+  }
+
+  const normalizedNanos = (nanosPart ?? '0').padEnd(9, '0').slice(0, 9);
+  return `${account}-${secondsPart}-${normalizedNanos}`;
+};
+
 export class InscriberBuilder extends BaseServiceBuilder {
-  protected inscriptionSDK?: InscriptionSDK;
-  private static signerProvider?: () => Promise<DAppSigner | null> | DAppSigner | null;
-  private static walletInfoResolver?: () => Promise<{ accountId: string; network: 'mainnet' | 'testnet' } | null> | { accountId: string; network: 'mainnet' | 'testnet' } | null;
+  protected inscriptionSDK?: InscriptionSDKInstance;
+  private static signerProvider?: () =>
+    | Promise<DAppSigner | null>
+    | DAppSigner
+    | null;
+  private static walletInfoResolver?: () =>
+    | Promise<{ accountId: string; network: 'mainnet' | 'testnet' } | null>
+    | { accountId: string; network: 'mainnet' | 'testnet' }
+    | null;
+
   private static startInscriptionDelegate?: (
     request: Record<string, unknown>,
     network: 'mainnet' | 'testnet'
-  ) => Promise<{
-    transactionBytes: string;
-    tx_id?: string;
-    topic_id?: string;
-    status?: string;
-    completed?: boolean;
-  }>;
+  ) => Promise<PendingInscriptionResponse | CompletedInscriptionResponse>;
   private static walletExecutor?: (
     base64: string,
     network: 'mainnet' | 'testnet'
@@ -62,7 +105,10 @@ export class InscriberBuilder extends BaseServiceBuilder {
   }
 
   static setWalletInfoResolver(
-    resolver: () => Promise<{ accountId: string; network: 'mainnet' | 'testnet' } | null> | { accountId: string; network: 'mainnet' | 'testnet' } | null
+    resolver: () =>
+      | Promise<{ accountId: string; network: 'mainnet' | 'testnet' } | null>
+      | { accountId: string; network: 'mainnet' | 'testnet' }
+      | null
   ): void {
     InscriberBuilder.walletInfoResolver = resolver;
   }
@@ -71,13 +117,16 @@ export class InscriberBuilder extends BaseServiceBuilder {
     delegate: (
       request: Record<string, unknown>,
       network: 'mainnet' | 'testnet'
-    ) => Promise<{ transactionBytes: string; tx_id?: string; topic_id?: string; status?: string; completed?: boolean }>
+    ) => Promise<PendingInscriptionResponse | CompletedInscriptionResponse>
   ): void {
     InscriberBuilder.startInscriptionDelegate = delegate;
   }
 
   static setWalletExecutor(
-    executor: (base64: string, network: 'mainnet' | 'testnet') => Promise<{ transactionId: string }>
+    executor: (
+      base64: string,
+      network: 'mainnet' | 'testnet'
+    ) => Promise<{ transactionId: string }>
   ): void {
     InscriberBuilder.walletExecutor = executor;
   }
@@ -94,7 +143,7 @@ export class InscriberBuilder extends BaseServiceBuilder {
     if (!provider) return null;
     try {
       const maybe = provider();
-      return (maybe && typeof (maybe as Promise<unknown>).then === 'function')
+      return maybe && typeof (maybe as Promise<unknown>).then === 'function'
         ? await (maybe as Promise<DAppSigner | null>)
         : (maybe as DAppSigner | null);
     } catch {
@@ -103,12 +152,53 @@ export class InscriberBuilder extends BaseServiceBuilder {
   }
 
   /**
-   * Get or create Inscription SDK - temporarily returns null since we don't have the actual SDK
+   * Get or create Inscription SDK
    */
   protected async getInscriptionSDK(
-    _options: InscriptionOptions
-  ): Promise<InscriptionSDK | null> {
-    return null;
+    options: InscriptionOptions
+  ): Promise<InscriptionSDKInstance | null> {
+    if (this.inscriptionSDK) {
+      return this.inscriptionSDK;
+    }
+
+    const network = this.hederaKit.client.network;
+    const networkType: 'mainnet' | 'testnet' = network
+      .toString()
+      .includes('mainnet')
+      ? 'mainnet'
+      : 'testnet';
+    const accountId = this.hederaKit.signer.getAccountId().toString();
+    const operatorKey = this.hederaKit.signer?.getOperatorPrivateKey();
+    const baseOptions: InscriptionOptions = {
+      ...options,
+      network: options.network ?? networkType,
+    };
+
+    const apiKey = baseOptions.apiKey ?? (operatorKey ? undefined : 'public-access');
+    const effectiveOptions: InscriptionOptions = apiKey
+      ? { ...baseOptions, apiKey }
+      : baseOptions;
+
+    const clientConfig = {
+      accountId,
+      privateKey: operatorKey?.toStringRaw() ?? apiKey ?? 'public-access',
+      network: networkType,
+    };
+
+    try {
+      this.inscriptionSDK = await getOrCreateSDK(
+        clientConfig,
+        effectiveOptions,
+        this.inscriptionSDK
+      );
+      return this.inscriptionSDK;
+    } catch (error) {
+      this.logger.error('failed to setup sdk', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      this.inscriptionSDK = undefined;
+      return null;
+    }
   }
 
   /**
@@ -162,13 +252,7 @@ export class InscriberBuilder extends BaseServiceBuilder {
     }
 
     type WalletInfo = { accountId: string; network: 'mainnet' | 'testnet' };
-    type WalletStartResponse = {
-      transactionBytes: string;
-      tx_id?: string;
-      topic_id?: string;
-      status?: string;
-      completed?: boolean;
-    };
+
     type WalletExecutorResponse = { transactionId: string };
 
     const infoMaybe: WalletInfo | null = InscriberBuilder.walletInfoResolver
@@ -176,7 +260,9 @@ export class InscriberBuilder extends BaseServiceBuilder {
       : null;
 
     if (InscriberBuilder.preferWalletOnly && !infoMaybe) {
-      const err = new Error('Wallet unavailable: connect a wallet or switch to autonomous mode');
+      const err = new Error(
+        'Wallet unavailable: connect a wallet or switch to autonomous mode'
+      );
       (err as unknown as { code: string }).code = 'wallet_unavailable';
       throw err;
     }
@@ -193,7 +279,10 @@ export class InscriberBuilder extends BaseServiceBuilder {
         fileStandard?: string;
         chunkSize?: number;
         jsonFileURL?: string;
-        metadata?: Record<string, unknown> & { creator?: string; description?: string };
+        metadata?: Record<string, unknown> & {
+          creator?: string;
+          description?: string;
+        };
       };
       const ext = options as InscriptionOptionsExt;
 
@@ -204,7 +293,8 @@ export class InscriberBuilder extends BaseServiceBuilder {
         mode: options.mode || 'file',
       };
       if (typeof ext.fileStandard !== 'undefined') {
-        (baseRequest as { fileStandard?: string }).fileStandard = ext.fileStandard;
+        (baseRequest as { fileStandard?: string }).fileStandard =
+          ext.fileStandard;
       }
       if (typeof ext.chunkSize !== 'undefined') {
         (baseRequest as { chunkSize?: number }).chunkSize = ext.chunkSize;
@@ -216,7 +306,10 @@ export class InscriberBuilder extends BaseServiceBuilder {
           request = { ...baseRequest, file: { type: 'url', url: input.url } };
           break;
         case 'file':
-          request = { ...baseRequest, file: { type: 'path', path: input.path } };
+          request = {
+            ...baseRequest,
+            file: { type: 'path', path: input.path },
+          };
           break;
         case 'buffer':
           request = {
@@ -233,58 +326,138 @@ export class InscriberBuilder extends BaseServiceBuilder {
 
       if (options.mode === 'hashinal') {
         (request as { metadataObject?: unknown }).metadataObject = ext.metadata;
-        (request as { creator?: string }).creator = ext.metadata?.creator || holderId;
-        (request as { description?: string }).description = ext.metadata?.description;
+        (request as { creator?: string }).creator =
+          ext.metadata?.creator || holderId;
+        (request as { description?: string }).description =
+          ext.metadata?.description;
         if (typeof ext.jsonFileURL === 'string' && ext.jsonFileURL.length > 0) {
           (request as { jsonFileURL?: string }).jsonFileURL = ext.jsonFileURL;
         }
       }
 
-      const start: WalletStartResponse = await InscriberBuilder.startInscriptionDelegate(
+      const start = await InscriberBuilder.startInscriptionDelegate(
         request,
         network
       );
-      if (!start || !start.transactionBytes) {
+
+      this.logger.info('inscribeAuto start response', {
+        hasTransactionBytes:
+          typeof (start as { transactionBytes?: unknown }).transactionBytes ===
+          'string',
+        txId: (start as { tx_id?: unknown }).tx_id,
+        status: (start as { status?: unknown }).status,
+      });
+
+      const completedStart = start as CompletedInscriptionResponse;
+      const isCompletedResponse =
+        Boolean(completedStart?.inscription) && completedStart?.confirmed;
+
+      if (isCompletedResponse) {
+        const completed = start as {
+          confirmed?: boolean;
+          result?: unknown;
+          inscription?: unknown;
+        };
+        this.logger.info(
+          'inscription already completed, short circuiting',
+          start
+        );
+        return {
+          quote: false,
+          confirmed: completed.confirmed === true,
+          result: completed.result as InscriptionResult,
+          inscription: completed.inscription,
+        } as unknown as InscriptionResponse;
+      }
+
+      const startResponse = start as {
+        transactionBytes: string;
+        tx_id?: string;
+        topic_id?: string;
+        status?: string;
+        completed?: boolean;
+      };
+
+      if (!startResponse || !startResponse.transactionBytes) {
         throw new Error('Failed to start inscription (no transaction bytes)');
       }
 
-      const exec: WalletExecutorResponse = await InscriberBuilder.walletExecutor(
-        start.transactionBytes,
-        network
-      );
+      const exec: WalletExecutorResponse =
+        await InscriberBuilder.walletExecutor(
+          startResponse.transactionBytes,
+          network
+        );
       const transactionId = exec?.transactionId || '';
+      const rawTransactionId = startResponse.tx_id || transactionId;
+      const canonicalTransactionId = toDashedTransactionId(rawTransactionId);
 
-      const shouldWait = options.quoteOnly ? false : options.waitForConfirmation ?? true;
+      this.logger.info('inscribeAuto wallet execution', {
+        transactionId,
+        network,
+      });
+
+      const shouldWait = options.quoteOnly
+        ? false
+        : options.waitForConfirmation ?? true;
       if (shouldWait) {
-        const maxAttempts = (options as { waitMaxAttempts?: number }).waitMaxAttempts ?? 60;
-        const intervalMs = (options as { waitIntervalMs?: number }).waitIntervalMs ?? 5000;
+        const maxAttempts =
+          (options as { waitMaxAttempts?: number }).waitMaxAttempts ?? 60;
+        const intervalMs =
+          (options as { waitIntervalMs?: number }).waitIntervalMs ?? 5000;
+        const pollId = canonicalTransactionId;
+        this.logger.debug('Will be retrieving inscription', pollId);
 
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        let retrieved: RetrievedInscriptionResult | null = null;
+        const sdk = await this.getInscriptionSDK(options);
+
+        if (sdk) {
           try {
-            const retrieved: RetrievedInscriptionResult = await this.retrieveInscription(
-              transactionId,
-              options
+            retrieved = await sdk.waitForInscription(
+              pollId,
+              maxAttempts,
+              intervalMs,
+              true,
+              (progress: RegistrationProgressData) => {
+                this.logger.debug('checking inscription', progress);
+              }
             );
-            const topicIdFromInscription: string | undefined = getTopicId(retrieved as unknown);
-            const topicId: string | undefined = topicIdFromInscription ?? start.topic_id;
-            const status: string | undefined = (retrieved as { status?: string }).status;
-            const isDone = status === 'completed' || !!topicId;
-            if (isDone) {
-              const resultConfirmed: InscriptionResponse = {
-                quote: false,
-                confirmed: true,
-                result: {
-                  jobId: start.tx_id || '',
-                  transactionId,
-                  topicId,
-                },
-                inscription: retrieved,
-              } as unknown as InscriptionResponse;
-              return resultConfirmed;
-            }
-          } catch {
+          } catch (error) {
+            this.logger.warn('Primary inscription wait failed', {
+              pollId,
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
-          await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        } else {
+          this.logger.warn(
+            'No inscription SDK available, using public client',
+            {
+              pollId,
+            }
+          );
+        }
+
+        if (retrieved) {
+          const topicIdFromInscription: string | undefined = getTopicId(
+            retrieved as unknown
+          );
+          const topicId: string | undefined =
+            topicIdFromInscription ?? startResponse.topic_id;
+          const resultConfirmed: InscriptionResponse = {
+            quote: false,
+            confirmed: true,
+            result: {
+              jobId: toDashedTransactionId(startResponse.tx_id || ''),
+              transactionId: canonicalTransactionId,
+              topicId,
+            },
+            inscription: retrieved,
+          } as unknown as InscriptionResponse;
+          this.logger.debug(
+            'retrieved inscription confirmed',
+            resultConfirmed,
+            retrieved
+          );
+          return resultConfirmed;
         }
       }
 
@@ -292,18 +465,22 @@ export class InscriberBuilder extends BaseServiceBuilder {
         quote: false,
         confirmed: false,
         result: {
-          jobId: start.tx_id || '',
-          transactionId,
-          status: start.status,
-          completed: start.completed,
+          jobId: toDashedTransactionId(startResponse.tx_id || ''),
+          transactionId: canonicalTransactionId,
+          status: startResponse.status,
+          completed: startResponse.completed,
         },
-        inscription: start.topic_id ? { topic_id: start.topic_id } : undefined,
+        inscription: startResponse.topic_id
+          ? { topic_id: startResponse.topic_id }
+          : undefined,
       } as unknown as InscriptionResponse;
       return partial;
     }
 
     if (InscriberBuilder.preferWalletOnly) {
-      const err = new Error('Wallet unavailable: connect a wallet or switch to autonomous mode');
+      const err = new Error(
+        'Wallet unavailable: connect a wallet or switch to autonomous mode'
+      );
       (err as unknown as { code: string }).code = 'wallet_unavailable';
       throw err;
     }
